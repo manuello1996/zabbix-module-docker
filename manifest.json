@@ -4,7 +4,7 @@
 	"type": "module",
 	"name": "Docker Monitoring",
 	"namespace": "MonzphereDocker",
-	"version": "1.0",
+	"version": "1.1",
 	"author": "MonZphere",
 	"description": "Docker container overview and per-container metrics collected by Zabbix agent 2.",
 	"actions": {

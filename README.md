@@ -1,6 +1,6 @@
 # Docker Monitoring — Zabbix Frontend Module
 
-A Zabbix 8.0 frontend module that adds first-class Docker monitoring pages to the Zabbix UI, built on top of the official **Docker by Zabbix agent 2** template. No external services, no mocked data — everything is read through the Zabbix API with the permissions of the logged-in user.
+A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages to the Zabbix UI, built on top of the official **Docker by Zabbix agent 2** template. No external services, no mocked data — everything is read through the Zabbix API with the permissions of the logged-in user.
 
 Developed by [MonZphere](https://monzphere.com).
 
@@ -25,7 +25,7 @@ Developed by [MonZphere](https://monzphere.com).
 
 | Component | Version |
 |---|---|
-| Zabbix server + frontend | 8.0 |
+| Zabbix server + frontend | 7.0 or 8.0 |
 | Zabbix agent 2 (with built-in Docker plugin) | 7.0+ |
 | Template | *Docker by Zabbix agent 2* |
 | PHP | 8.2 – 8.5 |

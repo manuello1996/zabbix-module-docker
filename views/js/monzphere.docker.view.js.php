@@ -58,7 +58,7 @@ window.monzphere_docker = new class {
 		this._panel = panel;
 
 		panel.addEventListener('click', (e) => {
-			const page_link = e.target.closest('.<?= ZBX_STYLE_PAGER_CONTAINER ?> a[href]');
+			const page_link = e.target.closest('.<?= defined('ZBX_STYLE_PAGER_CONTAINER') ? ZBX_STYLE_PAGER_CONTAINER : ZBX_STYLE_TABLE_PAGING ?> a[href]');
 
 			if (page_link === null || !panel.contains(page_link)) {
 				return;
