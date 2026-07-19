@@ -10,7 +10,7 @@ use CWebUser;
 use Modules\MonzphereDocker\Includes\DockerCollector;
 use Modules\MonzphereDocker\Includes\DockerFormatter;
 
-class DockerRefresh extends CController {
+class CControllerDockerRefresh extends CController {
 	protected function init(): void {
 		$this->setPostContentType(self::POST_CONTENT_TYPE_JSON);
 	}

@@ -24,7 +24,7 @@ use CWebUser;
 use Modules\MonzphereDocker\Includes\DockerCollector;
 use Modules\MonzphereDocker\Includes\DockerFormatter;
 
-class DockerTab extends CController {
+class CControllerDockerTab extends CController {
 	public const TIME_PROFILE_IDX = 'web.monzphere.docker.filter';
 
 	public const PROFILE_ACTIVE_TAB = 'web.monzphere.docker.active_tab';

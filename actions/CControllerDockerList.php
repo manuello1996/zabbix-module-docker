@@ -14,7 +14,7 @@ use CUrl;
 use CWebUser;
 use Manager;
 
-class DockerList extends CController {
+class CControllerDockerList extends CController {
 	public const PROFILE_GROUPIDS = 'web.monzphere.docker.list.filter.groupids';
 	public const PROFILE_HOSTIDS = 'web.monzphere.docker.list.filter.hostids';
 

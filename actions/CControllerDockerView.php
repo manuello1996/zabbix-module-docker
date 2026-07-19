@@ -14,7 +14,7 @@ use CUrl;
 use CWebUser;
 use Modules\MonzphereDocker\Includes\DockerCollector;
 
-class DockerView extends CController {
+class CControllerDockerView extends CController {
 	public const PROFILE_GROUPIDS = 'web.monzphere.docker.filter.groupids';
 	public const PROFILE_HOSTID = 'web.monzphere.docker.filter.hostid';
 
@@ -151,7 +151,7 @@ class DockerView extends CController {
 
 			'active_tab' => CProfile::get('web.monzphere.docker.filter.active', 0),
 
-			'active_docker_tab' => CProfile::get(DockerTab::PROFILE_ACTIVE_TAB, ''),
+			'active_docker_tab' => CProfile::get(CControllerDockerTab::PROFILE_ACTIVE_TAB, ''),
 			'hosts' => array_values($hosts),
 			'host' => $host,
 			'overview' => null,

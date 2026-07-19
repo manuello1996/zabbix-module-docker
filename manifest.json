@@ -4,30 +4,30 @@
 	"type": "module",
 	"name": "Docker Monitoring",
 	"namespace": "MonzphereDocker",
-	"version": "1.1",
+	"version": "1.2",
 	"author": "MonZphere",
 	"description": "Docker container overview and per-container metrics collected by Zabbix agent 2.",
 	"actions": {
 		"monzphere.docker.list": {
-			"class": "DockerList",
+			"class": "CControllerDockerList",
 			"view": "monzphere.docker.list",
 			"layout": "layout.htmlpage"
 		},
 		"monzphere.docker.view": {
-			"class": "DockerView",
+			"class": "CControllerDockerView",
 			"view": "monzphere.docker.view",
 			"layout": "layout.htmlpage"
 		},
 		"monzphere.docker.refresh": {
-			"class": "DockerRefresh",
+			"class": "CControllerDockerRefresh",
 			"layout": "layout.json"
 		},
 		"monzphere.docker.tab": {
-			"class": "DockerTab",
+			"class": "CControllerDockerTab",
 			"layout": "layout.json"
 		},
 		"monzphere.docker.container": {
-			"class": "DockerContainer",
+			"class": "CControllerDockerContainer",
 			"layout": "layout.json"
 		}
 	},

@@ -2,7 +2,9 @@
 
 A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages to the Zabbix UI, built on top of the official **Docker by Zabbix agent 2** template. No external services, no mocked data — everything is read through the Zabbix API with the permissions of the logged-in user.
 
-Developed by [MonZphere](https://monzphere.com).
+Developed by [MonZphere](https://monzphere.com) — Zabbix Integration Partner.
+
+<a href="https://monzphere.com"><img src="assets/img/zabbix-partner.svg" alt="Zabbix Integration Partner" width="170"/></a>
 
 ## Features
 

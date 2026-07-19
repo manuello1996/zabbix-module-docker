@@ -12,7 +12,7 @@ use CTag;
 use CUrl;
 use CWebUser;
 
-class DockerContainer extends CController {
+class CControllerDockerContainer extends CController {
 	private const FIELDS = [
 		'docker.container_info.image' => 'image',
 		'docker.container_info.restart_count' => 'restart_count',
@@ -178,7 +178,7 @@ class DockerContainer extends CController {
 
 	private function makeChartCells(array $by_prefix): array {
 		$timeline = getTimeSelectorPeriod([
-			'profileIdx' => DockerTab::TIME_PROFILE_IDX,
+			'profileIdx' => CControllerDockerTab::TIME_PROFILE_IDX,
 			'profileIdx2' => 0
 		]);
 
@@ -244,7 +244,7 @@ class DockerContainer extends CController {
 					->setArgument('resolve_macros', 1)
 					->setArgument('widget_view', 1)
 					->setArgument('outer', 1)
-					->setArgument('profileIdx', DockerTab::TIME_PROFILE_IDX)
+					->setArgument('profileIdx', CControllerDockerTab::TIME_PROFILE_IDX)
 					->setArgument('height', $height);
 
 				$body = (new CTag('img', false))
