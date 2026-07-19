@@ -27,7 +27,9 @@ Developed by [MonZphere](https://monzphere.com).
 |---|---|
 | Zabbix server + frontend | 7.0 or 8.0 |
 | Zabbix agent 2 (with built-in Docker plugin) | 7.0+ |
-| Template | *Docker by Zabbix agent 2* |
+| Template | *Docker by Zabbix agent 2* (bundled copy in [`templates/`](templates/docker_by_zabbix_agent_2.yaml)) |
+
+The Volumes and Networks tabs need two extra items that are not part of the stock template: the dependent item `docker.volumes.raw` and the dependent item prototype `docker.container_info.networks["{#NAME}"]`, both with JSONPath extraction and discard-unchanged-with-heartbeat preprocessing. Import [`templates/docker_by_zabbix_agent_2.yaml`](templates/docker_by_zabbix_agent_2.yaml) (Data collection → Templates → Import) to get the template with these items included.
 | PHP | 8.2 – 8.5 |
 
 ## Installation
