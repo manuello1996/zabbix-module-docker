@@ -1,4 +1,8 @@
 # Docker Monitoring — Zabbix Frontend Module
+![views](https://komarev.com/ghpvc/?username=matheusandrade&repo=https://github.com/Monzphere/zabbix-module-docker) 
+![Stars](https://img.shields.io/github/stars/Monzphere/zabbix-module-docker?style=social)
+![Forks](https://img.shields.io/github/forks/Monzphere/zabbix-module-docker?style=social)
+![Issues](https://img.shields.io/github/issues/Monzphere/zabbix-module-docker)
 
 <img width="1240" height="767" alt="Captura de Tela 2026-07-19 às 19 40 23" src="https://github.com/user-attachments/assets/fb54ddc0-2fbb-4711-8570-47dc40b68bc2" />
 <img width="1237" height="758" alt="Captura de Tela 2026-07-19 às 19 41 02" src="https://github.com/user-attachments/assets/7c9f647e-46e0-4425-b9dc-f9a5bd10a28f" />
