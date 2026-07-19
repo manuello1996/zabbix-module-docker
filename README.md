@@ -5,6 +5,7 @@
 ![Issues](https://img.shields.io/github/issues/Monzphere/zabbix-module-docker)
 
 Developed by [MonZphere](https://monzphere.com) — Zabbix Integration Partner.
+
 <a href="https://monzphere.com"><img src="assets/img/zabbix-partner.svg" alt="Zabbix Integration Partner" width="170"/></a>
 
 <img width="1240" height="767" alt="Captura de Tela 2026-07-19 às 19 40 23" src="https://github.com/user-attachments/assets/fb54ddc0-2fbb-4711-8570-47dc40b68bc2" />
