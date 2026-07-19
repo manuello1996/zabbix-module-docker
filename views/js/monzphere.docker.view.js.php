@@ -303,6 +303,14 @@ window.monzphere_docker = new class {
 		});
 
 		panel.addEventListener('click', (e) => {
+			const topo_node = e.target.closest('[data-mnz-container]');
+
+			if (topo_node !== null && panel.contains(topo_node)) {
+				this._openContainerModal(topo_node.dataset.mnzContainer, topo_node);
+
+				return;
+			}
+
 			const head = e.target.closest('.mnz-docker-graphgroup-head');
 
 			if (head !== null && panel.contains(head)) {

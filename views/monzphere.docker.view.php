@@ -369,7 +369,8 @@ $tab_items[] = (new CSpan(_('Containers')))
 	->setAttribute('tabindex', '0')
 	->setAttribute('aria-selected', 'true');
 
-foreach ([['images', _('Images')], ['node', _('Node info')]] as [$key, $label]) {
+foreach ([['images', _('Images')], ['volumes', _('Volumes')], ['networks', _('Networks')],
+		['node', _('Node info')]] as [$key, $label]) {
 	$tab_items[] = (new CSpan($label))
 		->addClass('mnz-docker-tab')
 		->setAttribute('data-mnz-tab', $key)

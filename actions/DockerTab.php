@@ -16,6 +16,7 @@ use CRoleHelper;
 use CSettingsHelper;
 use CUrl;
 use CSeverityHelper;
+use Manager;
 use CSpan;
 use CTableInfo;
 use CTag;
@@ -35,7 +36,7 @@ class DockerTab extends CController {
 	protected function checkInput(): bool {
 		$fields = [
 			'hostid' =>	'required|db hosts.hostid',
-			'tab' =>	'required|in latest,problems,graphs,web,inventory,node,images,docker',
+			'tab' =>	'required|in latest,problems,graphs,web,inventory,node,images,volumes,networks,docker',
 			'page' =>	'ge 1'
 		];
 
@@ -59,6 +60,8 @@ class DockerTab extends CController {
 			'inventory' => CRoleHelper::UI_INVENTORY_HOSTS,
 			'node' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'images' => CRoleHelper::UI_MONITORING_LATEST_DATA,
+			'volumes' => CRoleHelper::UI_MONITORING_LATEST_DATA,
+			'networks' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'docker' => CRoleHelper::UI_MONITORING_LATEST_DATA
 		];
 
@@ -104,6 +107,14 @@ class DockerTab extends CController {
 
 			case 'images':
 				$panel = $this->makeImagesPanel($hostid, $page);
+				break;
+
+			case 'volumes':
+				$panel = $this->makeVolumesPanel($hostid, $page);
+				break;
+
+			case 'networks':
+				$panel = $this->makeNetworksPanel($hostid);
 				break;
 
 			case 'web':
@@ -336,6 +347,221 @@ class DockerTab extends CController {
 			$table,
 			$paging
 		]));
+	}
+
+	private function textItemValue(string $hostid, string $key): ?string {
+		$items = API::Item()->get([
+			'output' => ['itemid', 'value_type'],
+			'hostids' => $hostid,
+			'filter' => ['key_' => $key],
+			'monitored' => true,
+			'preservekeys' => true
+		]);
+
+		if (!$items) {
+			return null;
+		}
+
+		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
+			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
+		));
+
+		$itemid = array_key_first($items);
+
+		return array_key_exists($itemid, $last_values) ? $last_values[$itemid][0]['value'] : null;
+	}
+
+	private function makeVolumesPanel(string $hostid, int $page): CDiv {
+		$raw = $this->textItemValue($hostid, 'docker.volumes.raw');
+
+		if ($raw === null) {
+			return $this->wrapPanel(_('Volumes'),
+				(new CTableInfo())->setNoDataMessage(
+					_('No volume data collected yet. Data appears after the next "Docker: Volumes" item update.')
+				)
+			);
+		}
+
+		$volumes = json_decode($raw, true) ?: [];
+
+		$total_size = 0;
+		$in_use = 0;
+
+		foreach ($volumes as $volume) {
+			$total_size += (float) (($volume['UsageData'] ?? [])['Size'] ?? 0);
+			$in_use += (int) ((($volume['UsageData'] ?? [])['RefCount'] ?? 0) > 0);
+		}
+
+		usort($volumes, static fn (array $a, array $b): int =>
+			(($b['UsageData'] ?? [])['Size'] ?? 0) <=> (($a['UsageData'] ?? [])['Size'] ?? 0)
+		);
+
+		$pills = [];
+
+		$pill_defs = [
+			[_('Volumes'), (string) count($volumes)],
+			[_('Total size'), DockerFormatter::bytes($total_size)],
+			[_('In use'), (string) $in_use],
+			[_('Unused'), (string) (count($volumes) - $in_use)]
+		];
+
+		foreach ($pill_defs as [$label, $value]) {
+			$pills[] = (new CDiv([
+				(new CSpan($label))->addClass('mnz-docker-card-unit'),
+				(new CSpan($value))->addClass('mnz-docker-card-value')
+			]))->addClass('mnz-docker-stat');
+		}
+
+		$paging = CPagerHelper::paginate($page, $volumes, ZBX_SORT_UP, $this->getTabUrl('volumes'));
+
+		$table = (new CTableInfo())
+			->setHeader([_('Volume'), _('Mountpoint'), _('Size'), _('Ref count')])
+			->setNoDataMessage(_('No volumes found.'));
+
+		foreach ($volumes as $volume) {
+			$name = (string) ($volume['Name'] ?? '');
+			$is_anonymous = preg_match('/^[0-9a-f]{64}$/', $name) == 1;
+			$usage = $volume['UsageData'] ?? [];
+			$refcount = (int) ($usage['RefCount'] ?? 0);
+
+			$table->addRow([
+				(new CSpan($is_anonymous ? substr($name, 0, 12) : $name))
+					->addClass('mnz-docker-image-name')
+					->addClass($is_anonymous ? 'mnz-docker-muted' : null)
+					->setTitle($name),
+				(new CSpan((string) ($volume['Mountpoint'] ?? '-')))
+					->addClass('mnz-docker-image-id')
+					->setTitle((string) ($volume['Mountpoint'] ?? '')),
+				DockerFormatter::bytes(($usage['Size'] ?? 0)),
+				(new CSpan((string) $refcount))
+					->addClass($refcount > 0 ? 'mnz-docker-status-running' : 'mnz-docker-muted')
+			]);
+		}
+
+		return $this->wrapPanel(_('Volumes'), new CDiv([
+			(new CDiv($pills))->addClass('mnz-docker-hostbar-stats')->addClass('mnz-docker-node-stats'),
+			$table,
+			$paging
+		]));
+	}
+
+	private function makeNetworksPanel(string $hostid): CDiv {
+		$items = API::Item()->get([
+			'output' => ['itemid', 'key_', 'value_type'],
+			'hostids' => $hostid,
+			'search' => ['key_' => 'docker.container_info.networks['],
+			'startSearch' => true,
+			'monitored' => true,
+			'preservekeys' => true
+		]);
+
+		if (!$items) {
+			return $this->wrapPanel(_('Networks'),
+				(new CTableInfo())->setNoDataMessage(
+					_('No network data collected yet. Data appears after the next containers discovery cycle.')
+				)
+			);
+		}
+
+		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
+			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
+		));
+
+		$container_state = [];
+
+		foreach (DockerCollector::collect($hostid)['containers'] as $container) {
+			$row = DockerFormatter::formatContainer($container);
+			$container_state[$container['name']] = $row['status_kind'];
+		}
+
+		$networks = [];
+		$memberships = [];
+
+		foreach ($items as $itemid => $item) {
+			if (preg_match('/^docker\.container_info\.networks\["?\/?([^"\]]+)"?\]$/', $item['key_'], $matches) != 1
+					|| !array_key_exists($itemid, $last_values)) {
+				continue;
+			}
+
+			$name = $matches[1];
+			$nets = json_decode($last_values[$itemid][0]['value'], true);
+
+			if (!is_array($nets)) {
+				continue;
+			}
+
+			foreach ($nets as $net_name => $net) {
+				$networks[$net_name][$name] = (string) ($net['IPAddress'] ?? '');
+				$memberships[$name][] = $net_name;
+			}
+		}
+
+		if (!$networks) {
+			return $this->wrapPanel(_('Networks'),
+				(new CTableInfo())->setNoDataMessage(_('No container network data available.'))
+			);
+		}
+
+		uasort($networks, static fn (array $a, array $b): int => count($b) <=> count($a));
+
+		$legend = (new CDiv([
+			(new CSpan([(new CSpan())->addClass('mnz-docker-dot')->addClass('mnz-docker-status-running'),
+				' '._('Running')]))->addClass('mnz-docker-topo-legend-item'),
+			(new CSpan([(new CSpan())->addClass('mnz-docker-dot')->addClass('mnz-docker-status-stopped'),
+				' '._('Problem')]))->addClass('mnz-docker-topo-legend-item'),
+			(new CSpan([(new CSpan('⇄'))->addClass('mnz-docker-topo-multi'), ' '._('Multiple networks')]))
+				->addClass('mnz-docker-topo-legend-item'),
+			(new CSpan(count($networks).' '._('networks').' · '.count($memberships).' '._('containers')))
+				->addClass('mnz-docker-graphs-count')
+		]))->addClass('mnz-docker-topo-legend');
+
+		$zones = new CDiv();
+		$zones->addClass('mnz-docker-topo');
+
+		foreach ($networks as $net_name => $members) {
+			$nodes = new CDiv();
+			$nodes->addClass('mnz-docker-topo-nodes');
+
+			ksort($members);
+
+			foreach ($members as $container => $ip) {
+				$kind = $container_state[$container] ?? 'up';
+				$extra_nets = array_values(array_diff($memberships[$container] ?? [], [$net_name]));
+
+				$nodes->addItem(
+					(new CDiv([
+						(new CSpan())->addClass('mnz-docker-dot')
+							->addClass($kind === 'up' ? 'mnz-docker-status-running' : 'mnz-docker-status-stopped'),
+						(new CDiv([
+							(new CSpan($container))->addClass('mnz-docker-topo-name'),
+							(new CSpan($ip !== '' ? $ip : '-'))->addClass('mnz-docker-topo-ip')
+						]))->addClass('mnz-docker-topo-text'),
+						$extra_nets
+							? (new CSpan('⇄'))
+								->addClass('mnz-docker-topo-multi')
+								->setTitle(_('Also in').': '.implode(', ', $extra_nets))
+							: null
+					]))
+						->addClass('mnz-docker-topo-node')
+						->addClass($kind === 'restarting' ? 'mnz-docker-topo-node-bad' : null)
+						->setAttribute('data-mnz-container', $container)
+						->setAttribute('role', 'button')
+						->setAttribute('tabindex', '0')
+				);
+			}
+
+			$zones->addItem(
+				(new CDiv([
+					(new CDiv([
+						(new CSpan($net_name))->addClass('mnz-docker-topo-zone-name'),
+						(new CSpan((string) count($members)))->addClass('mnz-docker-graphgroup-count')
+					]))->addClass('mnz-docker-topo-zone-head'),
+					$nodes
+				]))->addClass('mnz-docker-topo-zone')
+			);
+		}
+
+		return $this->wrapPanel(_('Networks'), new CDiv([$legend, $zones]));
 	}
 
 	private function makeProblemsPanel(string $hostid, int $page): CDiv {
