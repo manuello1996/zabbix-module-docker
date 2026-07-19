@@ -1,5 +1,9 @@
 # Docker Monitoring — Zabbix Frontend Module
 
+<img width="1240" height="767" alt="Captura de Tela 2026-07-19 às 19 40 23" src="https://github.com/user-attachments/assets/fb54ddc0-2fbb-4711-8570-47dc40b68bc2" />
+<img width="1237" height="758" alt="Captura de Tela 2026-07-19 às 19 41 02" src="https://github.com/user-attachments/assets/7c9f647e-46e0-4425-b9dc-f9a5bd10a28f" />
+<img width="1238" height="765" alt="Captura de Tela 2026-07-19 às 19 41 41" src="https://github.com/user-attachments/assets/35852994-8a98-459e-8fd5-3a50bb2da1bd" />
+
 A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages to the Zabbix UI, built on top of the official **Docker by Zabbix agent 2** template. No external services, no mocked data — everything is read through the Zabbix API with the permissions of the logged-in user.
 
 Developed by [MonZphere](https://monzphere.com) — Zabbix Integration Partner.
