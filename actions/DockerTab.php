@@ -20,6 +20,7 @@ use CSpan;
 use CTableInfo;
 use CTag;
 use CWebUser;
+use Modules\MonzphereDocker\Includes\DockerCollector;
 use Modules\MonzphereDocker\Includes\DockerFormatter;
 
 class DockerTab extends CController {
@@ -34,7 +35,7 @@ class DockerTab extends CController {
 	protected function checkInput(): bool {
 		$fields = [
 			'hostid' =>	'required|db hosts.hostid',
-			'tab' =>	'required|in latest,problems,graphs,web,inventory,node,docker',
+			'tab' =>	'required|in latest,problems,graphs,web,inventory,node,images,docker',
 			'page' =>	'ge 1'
 		];
 
@@ -57,6 +58,7 @@ class DockerTab extends CController {
 			'web' => CRoleHelper::UI_MONITORING_HOSTS,
 			'inventory' => CRoleHelper::UI_INVENTORY_HOSTS,
 			'node' => CRoleHelper::UI_MONITORING_LATEST_DATA,
+			'images' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'docker' => CRoleHelper::UI_MONITORING_LATEST_DATA
 		];
 
@@ -98,6 +100,10 @@ class DockerTab extends CController {
 
 			case 'node':
 				$panel = $this->makeNodePanel($hostid);
+				break;
+
+			case 'images':
+				$panel = $this->makeImagesPanel($hostid, $page);
 				break;
 
 			case 'web':
@@ -239,6 +245,99 @@ class DockerTab extends CController {
 		]));
 	}
 
+	private function makeImagesPanel(string $hostid, int $page): CDiv {
+		$search_limit = (int) CSettingsHelper::get(CSettingsHelper::SEARCH_LIMIT);
+
+		$items = API::Item()->get([
+			'output' => ['itemid', 'name', 'key_', 'units', 'value_type', 'lastvalue', 'lastclock'],
+			'selectValueMap' => ['mappings'],
+			'hostids' => $hostid,
+			'search' => ['key_' => ['docker.image.created[', 'docker.image.size[']],
+			'searchByAny' => true,
+			'startSearch' => true,
+			'monitored' => true,
+			'limit' => $search_limit
+		]);
+
+		$images = [];
+
+		foreach ($items as $item) {
+			if (preg_match('/^docker\.image\.(created|size)\["?([^"\]]+)"?\]$/', $item['key_'], $matches) != 1
+					|| $item['lastclock'] == 0) {
+				continue;
+			}
+
+			[, $field, $image_id] = $matches;
+
+			if (!array_key_exists($image_id, $images)) {
+				$name = preg_replace('/^Image\s+|:\s+[^:]+$/u', '', $item['name']);
+
+				$images[$image_id] = [
+					'id' => $image_id,
+					'name' => $name,
+					'created' => null,
+					'size' => null,
+					'size_formatted' => null
+				];
+			}
+
+			if ($field === 'created') {
+				$images[$image_id]['created'] = (int) $item['lastvalue'];
+			}
+			else {
+				$images[$image_id]['size'] = (float) $item['lastvalue'];
+				$images[$image_id]['size_formatted'] = formatHistoryValue($item['lastvalue'], $item);
+			}
+		}
+
+		usort($images, static fn (array $a, array $b): int => ($b['size'] ?? -1) <=> ($a['size'] ?? -1));
+
+		$node = DockerCollector::nodeInfo($hostid);
+
+		$pills = [];
+
+		$pill_defs = [
+			[_('Images'), $node['images_total'] !== null ? $node['images_total'] : count($images)],
+			[_('Total size'), $node['images_size'] !== null ? DockerFormatter::bytes($node['images_size']) : '-']
+		];
+
+		foreach ($pill_defs as [$label, $value]) {
+			$pills[] = (new CDiv([
+				(new CSpan($label))->addClass('mnz-docker-card-unit'),
+				(new CSpan($value))->addClass('mnz-docker-card-value')
+			]))->addClass('mnz-docker-stat');
+		}
+
+		$paging = CPagerHelper::paginate($page, $images, ZBX_SORT_UP, $this->getTabUrl('images'));
+
+		$table = (new CTableInfo())
+			->setHeader([_('Image'), _('ID'), _('Size'), _('Created')])
+			->setNoDataMessage(_('No image data collected yet.'));
+
+		foreach ($images as $image) {
+			$is_dangling = strpos($image['name'], '<none>') !== false;
+
+			$short_id = preg_replace('/^sha256:/', '', $image['id']);
+			$short_id = substr($short_id, 0, 12);
+
+			$table->addRow([
+				(new CSpan($is_dangling ? _('<untagged>') : $image['name']))
+					->addClass('mnz-docker-image-name')
+					->addClass($is_dangling ? 'mnz-docker-muted' : null)
+					->setTitle($image['name']),
+				(new CSpan($short_id))->addClass('mnz-docker-image-id')->setTitle($image['id']),
+				$image['size_formatted'] ?? '-',
+				$image['created'] !== null ? zbx_date2str(DATE_TIME_FORMAT, $image['created']) : '-'
+			]);
+		}
+
+		return $this->wrapPanel(_('Images'), new CDiv([
+			(new CDiv($pills))->addClass('mnz-docker-hostbar-stats')->addClass('mnz-docker-node-stats'),
+			$table,
+			$paging
+		]));
+	}
+
 	private function makeProblemsPanel(string $hostid, int $page): CDiv {
 		$search_limit = (int) CSettingsHelper::get(CSettingsHelper::SEARCH_LIMIT);
 
@@ -259,6 +358,7 @@ class DockerTab extends CController {
 
 		$backurl = (new CUrl('zabbix.php'))
 			->setArgument('action', 'monzphere.docker.view')
+			->setArgument('filter_hostid', [$hostid])
 			->getUrl();
 
 		foreach ($problems as $problem) {
@@ -294,11 +394,13 @@ class DockerTab extends CController {
 	}
 
 	private function makeGraphsPanel(string $hostid): CDiv {
+		$search_limit = (int) CSettingsHelper::get(CSettingsHelper::SEARCH_LIMIT);
+
 		$graphs = API::Graph()->get([
-			'output' => ['graphid', 'name'],
+			'output' => ['graphid', 'name', 'graphtype'],
 			'hostids' => $hostid,
 			'sortfield' => 'name',
-			'limit' => 50
+			'limit' => $search_limit
 		]);
 
 		if (!$graphs) {
@@ -312,24 +414,95 @@ class DockerTab extends CController {
 			'profileIdx2' => 0
 		]);
 
-		$panel = new CDiv();
+		$groups = [];
 
 		foreach ($graphs as $graph) {
+			if (preg_match('/^Container\s+\/?([^:]+):\s*(.+)$/', $graph['name'], $matches) == 1) {
+				$groups[$matches[1]][] = ['graph' => $graph, 'title' => $matches[2]];
+			}
+			else {
+				$groups[''][] = ['graph' => $graph, 'title' => $graph['name']];
+			}
+		}
+
+		uksort($groups, static function (string $a, string $b): int {
+			if ($a === '' || $b === '') {
+				return $a === '' ? -1 : 1;
+			}
+
+			return strnatcasecmp($a, $b);
+		});
+
+		$total = count($graphs);
+		$expand_all = $total <= 6;
+
+		$panel = new CDiv();
+
+		$panel->addItem(
+			(new CDiv([
+				(new CTag('input', false))
+					->setId('mnz-docker-graphs-search')
+					->setAttribute('type', 'search')
+					->setAttribute('placeholder', _('Filter graphs...'))
+					->setAttribute('aria-label', _('Filter graphs'))
+					->setAttribute('autocomplete', 'off')
+					->addClass('mnz-docker-search'),
+				(new CSpan($total.' '._('graphs').' · '.count($groups).' '._('groups')
+					.($total == $search_limit ? ' ('._('limited').')' : '')
+				))->addClass('mnz-docker-graphs-count')
+			]))->addClass('mnz-docker-toolbar')
+		);
+
+		foreach ($groups as $group_name => $items) {
+			$body = (new CDiv())->addClass('mnz-docker-graphgroup-body');
+
+			foreach ($items as ['graph' => $graph, 'title' => $title]) {
+				$dims = getGraphDims($graph['graphid']);
+
+				$is_pie = in_array((int) $dims['graphtype'], [GRAPH_TYPE_PIE, GRAPH_TYPE_EXPLODED], true);
+
+				$body->addItem(
+					(new CDiv([
+						(new CTag('h5', true, $title))->addClass('mnz-docker-graph-title'),
+						(new CTag('img', false))
+							->setAttribute('alt', $graph['name'])
+							->setAttribute('loading', 'lazy')
+							->addClass('mnz-docker-chart-img')
+							->setAttribute('data-mnz-shift',
+								(string) ($is_pie ? 0 : $dims['shiftXleft'] + $dims['shiftXright'] + 1)
+							)
+							->setAttribute('data-mnz-chart', ($is_pie ? 'chart6.php' : 'chart2.php').'?'
+								.http_build_query([
+									'graphid' => $graph['graphid'],
+									'from' => $timeline['from'],
+									'to' => $timeline['to'],
+									'height' => $dims['graphHeight'],
+									'profileIdx' => self::TIME_PROFILE_IDX
+								]))
+					]))
+						->addClass('mnz-docker-graph')
+						->setAttribute('data-mnz-graph', mb_strtolower($title))
+				);
+			}
+
+			if (!$expand_all) {
+				$body->setAttribute('hidden', 'hidden');
+			}
+
+			$head = (new CTag('button', true, [
+				(new CSpan())->addClass('mnz-docker-graphgroup-caret'),
+				(new CSpan($group_name === '' ? _('Node') : $group_name))->addClass('mnz-docker-graphgroup-name'),
+				(new CSpan((string) count($items)))->addClass('mnz-docker-graphgroup-count')
+			]))
+				->setAttribute('type', 'button')
+				->addClass('mnz-docker-graphgroup-head')
+				->addClass($expand_all ? 'mnz-docker-graphgroup-open' : null)
+				->setAttribute('aria-expanded', $expand_all ? 'true' : 'false');
+
 			$panel->addItem(
-				(new CDiv([
-					(new CTag('h5', true, $graph['name']))->addClass('mnz-docker-graph-title'),
-					(new CTag('img', false))
-						->setAttribute('alt', $graph['name'])
-						->setAttribute('loading', 'lazy')
-						->setAttribute('src', 'chart2.php?'.http_build_query([
-							'graphid' => $graph['graphid'],
-							'from' => $timeline['from'],
-							'to' => $timeline['to'],
-							'height' => 201,
-							'width' => 1436,
-							'profileIdx' => self::TIME_PROFILE_IDX
-						]))
-				]))->addClass('mnz-docker-graph')
+				(new CDiv([$head, $body]))
+					->addClass('mnz-docker-graphgroup')
+					->setAttribute('data-mnz-graphgroup', mb_strtolower((string) $group_name))
 			);
 		}
 

@@ -43,11 +43,32 @@ class DockerRefresh extends CController {
 	}
 
 	protected function doAction(): void {
-		$data = DockerCollector::collect($this->getInput('hostid'));
+		$hostid = $this->getInput('hostid');
+		$data = DockerCollector::collect($hostid);
+		$node = DockerCollector::nodeInfo($hostid);
+
+		$memory_pct = ($node['mem_total'] !== null && (float) $node['mem_total'] > 0)
+			? (int) round(min(100, (float) $data['overview']['memory_total'] / (float) $node['mem_total'] * 100))
+			: null;
+
+		$problem_badges = [];
+
+		foreach (DockerCollector::problemsBySeverity($hostid) as $severity => $count) {
+			$problem_badges[] = [
+				'count' => $count,
+				'style' => \CSeverityHelper::getStatusStyle($severity),
+				'title' => \CSeverityHelper::getName($severity)
+			];
+		}
 
 		$this->setResponse(new CControllerResponseData(['main_block' => json_encode([
 			'overview' => DockerFormatter::formatOverview($data['overview']),
-			'containers' => array_map([DockerFormatter::class, 'formatContainer'], $data['containers'])
+			'containers' => array_map(
+				static fn (array $container): array => DockerFormatter::formatContainer($container, $node['mem_total']),
+				$data['containers']
+			),
+			'problem_badges' => $problem_badges,
+			'memory_pct' => $memory_pct
 		])]));
 	}
 }

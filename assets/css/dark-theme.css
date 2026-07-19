@@ -1,12 +1,32 @@
 html[theme="dark-theme"],
 html[theme="hc-dark"] {
-	
+
 	--mnz-docker-card-bg: #2b2b2b;
-	--mnz-docker-card-border: #383838;
+	--mnz-docker-card-border: #3d3d3d;
 	--mnz-docker-text: #f2f2f2;
-	--mnz-docker-text-muted: #737373;
-	--mnz-docker-running: #59db8f;
+	--mnz-docker-text-muted: #8a8a8a;
+	--mnz-docker-running: #3dbb70;
 	--mnz-docker-stopped: #ff5c5c;
 	--mnz-docker-accent: #4796c6;
-	--mnz-docker-tab-active-bg: rgba(71, 150, 198, .16);
+	--mnz-docker-strong: #dfe7ee;
+	--mnz-docker-primary-fg: #16232e;
+	--mnz-docker-surface-muted: #333333;
+	--mnz-docker-tint-red: rgba(255, 92, 92, .07);
+	--mnz-docker-blue: #6aa9e8;
+	--mnz-docker-orange: #f0975a;
+	--mnz-docker-crit: #ff6b6b;
+	--mnz-docker-progress: #3dbb70;
+	--mnz-docker-ok-bg: rgba(61, 187, 112, .12);
+	--mnz-docker-ok-bd: rgba(61, 187, 112, .45);
+	--mnz-docker-ok-fg: #52d183;
+	--mnz-docker-bad-bg: rgba(255, 92, 92, .12);
+	--mnz-docker-bad-bd: rgba(255, 92, 92, .45);
+	--mnz-docker-bad-fg: #ff7676;
+	--mnz-docker-series-1: #199c0d;
+	--mnz-docker-series-2: #f63100;
+}
+
+html[theme="dark-theme"] .mnz-docker-menu,
+html[theme="hc-dark"] .mnz-docker-menu {
+	box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
 }

@@ -16,6 +16,8 @@ class DockerCollector {
 
 	public const CONTAINER_KEYS = [
 		'docker.container_info.state.status' => 'status',
+		'docker.container_info.state.exitcode' => 'exitcode',
+		'docker.container_info.restart_count' => 'restarts',
 		'docker.container_stats.cpu_pct_usage' => 'cpu',
 		'docker.container_stats.memory.usage_total' => 'memory',
 		'docker.container_stats.memory.limit' => 'memory_limit',
@@ -24,7 +26,14 @@ class DockerCollector {
 		'docker.container_info.started' => 'started'
 	];
 
-	public const SPARKLINE_PERIOD = 3600;
+	public const NODE_KEYS = [
+		'system.uptime' => 'uptime',
+		'docker.mem.total' => 'mem_total',
+		'docker.images.total' => 'images_total',
+		'docker.images_size' => 'images_size'
+	];
+
+	public const SPARKLINE_PERIOD = 86400;
 
 	private const SPARKLINE_FIELDS = ['cpu', 'memory'];
 
@@ -117,6 +126,53 @@ class DockerCollector {
 		return ['overview' => $overview, 'containers' => array_values($containers)];
 	}
 
+	public static function nodeInfo(string $hostid): array {
+		$info = array_fill_keys(array_values(self::NODE_KEYS), null);
+
+		$items = API::Item()->get([
+			'output' => ['itemid', 'key_', 'value_type'],
+			'hostids' => $hostid,
+			'filter' => ['key_' => array_keys(self::NODE_KEYS)],
+			'monitored' => true,
+			'preservekeys' => true
+		]);
+
+		if (!$items) {
+			return $info;
+		}
+
+		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
+			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
+		));
+
+		foreach ($items as $itemid => $item) {
+			if (array_key_exists($itemid, $last_values)) {
+				$info[self::NODE_KEYS[$item['key_']]] = $last_values[$itemid][0]['value'];
+			}
+		}
+
+		return $info;
+	}
+
+	public static function problemsBySeverity(string $hostid): array {
+		$problems = API::Problem()->get([
+			'output' => ['severity'],
+			'hostids' => $hostid,
+			'recent' => true
+		]);
+
+		$by_severity = [];
+
+		foreach ($problems as $problem) {
+			$severity = (int) $problem['severity'];
+			$by_severity[$severity] = ($by_severity[$severity] ?? 0) + 1;
+		}
+
+		krsort($by_severity);
+
+		return $by_severity;
+	}
+
 	private static function parseKey(string $key): array {
 		if (preg_match('/^([a-z0-9._]+)\["?([^"\]]+)"?\]$/i', $key, $matches) != 1) {
 			return [null, ''];
@@ -170,6 +226,8 @@ class DockerCollector {
 		return [
 			'name' => $name,
 			'status' => null,
+			'exitcode' => null,
+			'restarts' => null,
 			'cpu' => null,
 			'cpu_itemid' => null,
 			'cpu_history' => [],

@@ -156,11 +156,27 @@ class DockerView extends CController {
 			'host' => $host,
 			'overview' => null,
 			'containers' => [],
+			'node' => array_fill_keys(array_values(DockerCollector::NODE_KEYS), null),
+			'problems_by_severity' => [],
+			'agent_address' => '',
 			'refresh_interval' => timeUnitToSeconds(CWebUser::getRefresh())
 		];
 
 		if ($hostid !== '') {
 			$data = array_replace($data, DockerCollector::collect($hostid));
+
+			$data['node'] = DockerCollector::nodeInfo($hostid);
+			$data['problems_by_severity'] = DockerCollector::problemsBySeverity($hostid);
+
+			foreach ($host['interfaces'] as $interface) {
+				if ((int) $interface['type'] == INTERFACE_TYPE_AGENT) {
+					$data['agent_address'] = (int) $interface['useip'] == INTERFACE_USE_IP
+						? $interface['ip']
+						: $interface['dns'];
+					$data['agent_available'] = (int) $interface['available'];
+					break;
+				}
+			}
 
 			$data['containers_total'] = count($data['containers']);
 

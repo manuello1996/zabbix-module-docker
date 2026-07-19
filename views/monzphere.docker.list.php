@@ -1,39 +1,47 @@
 <?php declare(strict_types = 0);
-/**
- * Docker Monitoring — Developed by MonZphere.
- *
- * Visão geral dos nodes Docker.
- *
- * @var CView $this
- * @var array $data
- */
 
 use Modules\MonzphereDocker\Includes\DockerFormatter;
 
 $this->includeJsFile('monzphere.docker.list.js.php', ['refresh_interval' => $data['refresh_interval']]);
 
 $makeFooter = static function (): CDiv {
-	return (new CDiv(_('Developed by MonZphere')))->addClass('mnz-docker-footer');
+	return (new CDiv([
+		(new CSpan(_('Developed by MonZphere'))),
+		(new CSpan('|'))->addClass('mnz-docker-footer-sep'),
+		(new CLink(_('Documentation'), 'https://github.com/Monzphere/zabbix-module-docker#readme'))
+			->setTarget('_blank'),
+		(new CLink(_('Changelog'), 'https://github.com/Monzphere/zabbix-module-docker/releases'))
+			->setTarget('_blank'),
+		(new CLink(_('Community'), 'https://monzphere.com'))
+			->setTarget('_blank')
+	]))->addClass('mnz-docker-footer');
 };
 
-$makeCard = static function (string $modifier, string $label, string $value, string $unit): CDiv {
+$makeStatSegment = static function (string $modifier, string $label, string $value, string $unit): CDiv {
 	return (new CDiv([
-		(new CDiv($label))->addClass('mnz-docker-card-label'),
+		(new CDiv($label))->addClass('mnz-docker-statseg-label'),
 		(new CDiv([
-			(new CDiv())->addClass('mnz-docker-card-icon')->addClass('mnz-docker-icon-'.$modifier),
-			(new CDiv([
-				(new CSpan($value))->addClass('mnz-docker-card-value'),
-				(new CSpan($unit))->addClass('mnz-docker-card-unit')
-			]))->addClass('mnz-docker-card-figure')
-		]))->addClass('mnz-docker-card-body')
+			(new CSpan($value))->addClass('mnz-docker-card-value'),
+			$unit !== '' ? (new CSpan($unit))->addClass('mnz-docker-card-unit') : null
+		]))->addClass('mnz-docker-statseg-figure')
 	]))
-		->addClass('mnz-docker-card')
+		->addClass('mnz-docker-statseg')
 		->addClass('mnz-docker-card-'.$modifier);
 };
 
 $html_page = (new CHtmlPage())
 	->setTitle(_('Docker nodes'))
 	->setWebLayoutMode(CViewHelper::loadLayoutMode());
+
+$html_page->addItem(
+	(new CDiv(
+		(new CDiv([
+			(new CSpan(_('Nodes')))->addClass('mnz-docker-breadcrumb-current')
+		]))
+			->addClass('mnz-docker-breadcrumb')
+			->setAttribute('aria-label', _('Breadcrumb'))
+	))->addClass('mnz-docker-topbar')
+);
 
 $filter_form = (new CFormGrid())
 	->addClass('mnz-docker-filter-row')
@@ -77,12 +85,12 @@ $html_page->addItem(
 	(new CDiv([
 		(new CTag('h4', true, _('Docker environment overview')))->addClass('mnz-docker-section-title'),
 		(new CDiv([
-			$makeCard('total', _('Nodes'), (string) $data['totals']['nodes'], _('nodes')),
-			$makeCard('total', _('Total containers'), (string) $data['totals']['total'], _('containers')),
-			$makeCard('running', _('Running'), (string) $data['totals']['running'], _('containers')),
-			$makeCard('stopped', _('Stopped'), (string) $data['totals']['stopped'], _('containers'))
+			$makeStatSegment('nodes', _('Nodes'), (string) $data['totals']['nodes'], ''),
+			$makeStatSegment('total', _('Containers'), (string) $data['totals']['total'], ''),
+			$makeStatSegment('running', _('Running'), (string) $data['totals']['running'], ''),
+			$makeStatSegment('stopped', _('Stopped / Err'), (string) $data['totals']['stopped'], '')
 		]))
-			->addClass('mnz-docker-cards')
+			->addClass('mnz-docker-statstrip')
 			->setId('mnz-docker-list-cards')
 	]))->addClass('mnz-docker-section')
 );

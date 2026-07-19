@@ -1,34 +1,28 @@
 <?php declare(strict_types = 0);
-/**
- * Docker Monitoring — Developed by MonZphere.
- *
- * @var CView $this
- * @var array $data
- */
 
 use Modules\MonzphereDocker\Includes\DockerFormatter;
 
 $this->addJsFile('class.calendar.js');
 $this->addJsFile('gtlc.js');
+$this->addJsFile('multilineinput.js');
+$this->addJsFile('items.js');
 
 $this->includeJsFile('monzphere.docker.view.js.php');
 
 $makeFooter = static function (): CDiv {
-	return (new CDiv(_('Developed by MonZphere')))->addClass('mnz-docker-footer');
-};
-
-$makeStat = static function (string $modifier, string $label, string $value, string $unit): CDiv {
 	return (new CDiv([
-		(new CSpan())->addClass('mnz-docker-card-icon')->addClass('mnz-docker-icon-'.$modifier),
-		(new CSpan($value))->addClass('mnz-docker-card-value'),
-		(new CSpan($unit))->addClass('mnz-docker-card-unit')
-	]))
-		->addClass('mnz-docker-stat')
-		->addClass('mnz-docker-card-'.$modifier)
-		->setTitle($label);
+		(new CSpan(_('Developed by MonZphere'))),
+		(new CSpan('|'))->addClass('mnz-docker-footer-sep'),
+		(new CLink(_('Documentation'), 'https://github.com/Monzphere/zabbix-module-docker#readme'))
+			->setTarget('_blank'),
+		(new CLink(_('Changelog'), 'https://github.com/Monzphere/zabbix-module-docker/releases'))
+			->setTarget('_blank'),
+		(new CLink(_('Community'), 'https://monzphere.com'))
+			->setTarget('_blank')
+	]))->addClass('mnz-docker-footer');
 };
 
-$makeSparkline = static function (array $history, bool $is_running): CDiv {
+$makeSparkline = static function (array $history, string $kind): CDiv {
 	$width = 100;
 	$height = 24;
 	$pad = 3;
@@ -38,7 +32,7 @@ $makeSparkline = static function (array $history, bool $is_running): CDiv {
 		->setAttribute('preserveAspectRatio', 'none')
 		->addClass('mnz-docker-spark-svg');
 
-	if (!$is_running || count($history) < 2) {
+	if ($kind === 'down' || $kind === 'off' || count($history) < 2) {
 		$y = $height - $pad - 2;
 
 		$svg->addItem(
@@ -47,8 +41,7 @@ $makeSparkline = static function (array $history, bool $is_running): CDiv {
 				->setAttribute('y1', $y)
 				->setAttribute('x2', $width)
 				->setAttribute('y2', $y)
-				->setAttribute('stroke', '#8b8b8b')
-				->setAttribute('stroke-width', 1.5)
+				->addClass('mnz-docker-spark-flat')
 		);
 	}
 	else {
@@ -82,88 +75,86 @@ $makeSparkline = static function (array $history, bool $is_running): CDiv {
 					->setAttribute('points',
 						'0,'.($height - 1).' '.implode(' ', $points).' '.$width.','.($height - 1)
 					)
-					->setAttribute('fill', '#59db8f')
-					->setAttribute('fill-opacity', '0.12')
+					->addClass('mnz-docker-spark-fill')
 			)
 			->addItem(
 				(new CTag('polyline', true))
 					->setAttribute('points', implode(' ', $points))
 					->setAttribute('fill', 'none')
-					->setAttribute('stroke', '#59db8f')
-					->setAttribute('stroke-width', 1.5)
+					->addClass('mnz-docker-spark-line')
 			);
 	}
 
-	return (new CDiv($svg))->addClass('mnz-docker-sparkline');
+	return (new CDiv($svg))
+		->addClass('mnz-docker-sparkline')
+		->addClass('mnz-docker-spark-'.$kind);
 };
 
 $html_page = (new CHtmlPage())
 	->setTitle(_('Docker'))
 	->setWebLayoutMode(CViewHelper::loadLayoutMode());
 
-$html_page->addItem(
-	(new CFilter())
-		->setResetUrl(new CUrl('zabbix.php?action=monzphere.docker.view'))
-		->setProfile($data['timeline']['profileIdx'], $data['timeline']['profileIdx2'])
-		->setActiveTab($data['active_tab'])
-		->addTimeSelector($data['timeline']['from'], $data['timeline']['to'], true,
-			'web.monzphere.docker.filter'
-		)
-		->addVar('action', 'monzphere.docker.view')
-);
+$filter = (new CFilter())
+	->setResetUrl(new CUrl('zabbix.php?action=monzphere.docker.view'))
+	->setProfile($data['timeline']['profileIdx'], $data['timeline']['profileIdx2'])
+	->setActiveTab($data['active_tab'])
+	->addTimeSelector($data['timeline']['from'], $data['timeline']['to'], true,
+		'web.monzphere.docker.filter'
+	)
+	->addVar('action', 'monzphere.docker.view');
 
-$html_page->addItem(
-	(new CForm('get'))
-		->cleanItems()
-		->setName('mnz_docker_filterbar')
-		->addVar('action', 'monzphere.docker.view')
-		->addItem(
-			(new CDiv([
-				new CLabel(_('Host groups'), 'filter_groupids__ms'),
-				(new CMultiSelect([
-					'name' => 'filter_groupids[]',
-					'object_name' => 'hostGroup',
-					'data' => $data['filter']['groups'],
-					'popup' => [
-						'parameters' => [
-							'srctbl' => 'host_groups',
-							'srcfld1' => 'groupid',
-							'dstfrm' => 'mnz_docker_filterbar',
-							'dstfld1' => 'filter_groupids_',
-							'with_monitored_items' => true
-						]
+$filterbar = (new CForm('get'))
+	->cleanItems()
+	->setName('mnz_docker_filterbar')
+	->addVar('action', 'monzphere.docker.view')
+	->addItem(
+		(new CDiv([
+			new CLabel(_('Host groups'), 'filter_groupids__ms'),
+			(new CMultiSelect([
+				'name' => 'filter_groupids[]',
+				'object_name' => 'hostGroup',
+				'data' => $data['filter']['groups'],
+				'popup' => [
+					'parameters' => [
+						'srctbl' => 'host_groups',
+						'srcfld1' => 'groupid',
+						'dstfrm' => 'mnz_docker_filterbar',
+						'dstfld1' => 'filter_groupids_',
+						'with_monitored_items' => true
 					]
-				]))->setWidth(ZBX_TEXTAREA_FILTER_STANDARD_WIDTH),
-				new CLabel(_('Host'), 'filter_hostid__ms'),
-				(new CMultiSelect([
-					'name' => 'filter_hostid[]',
-					'object_name' => 'hosts',
-					'multiple' => false,
-					'data' => $data['host'] !== null
-						? [['id' => $data['host']['hostid'], 'name' => $data['host']['name']]]
-						: [],
-					'popup' => [
-						'parameters' => [
-							'srctbl' => 'hosts',
-							'srcfld1' => 'hostid',
-							'dstfrm' => 'mnz_docker_filterbar',
-							'dstfld1' => 'filter_hostid_',
-							'with_monitored_items' => true
-						]
+				]
+			]))->setWidth(ZBX_TEXTAREA_FILTER_STANDARD_WIDTH),
+			new CLabel(_('Host'), 'filter_hostid__ms'),
+			(new CMultiSelect([
+				'name' => 'filter_hostid[]',
+				'object_name' => 'hosts',
+				'multiple' => false,
+				'data' => $data['host'] !== null
+					? [['id' => $data['host']['hostid'], 'name' => $data['host']['name']]]
+					: [],
+				'popup' => [
+					'parameters' => [
+						'srctbl' => 'hosts',
+						'srcfld1' => 'hostid',
+						'dstfrm' => 'mnz_docker_filterbar',
+						'dstfld1' => 'filter_hostid_',
+						'with_monitored_items' => true
 					]
-				]))->setWidth(ZBX_TEXTAREA_FILTER_STANDARD_WIDTH),
-				new CSubmitButton(_('Filter'), 'filter_set', 1),
-				(new CRedirectButton(_('Reset'),
-					(new CUrl('zabbix.php'))
-						->setArgument('action', 'monzphere.docker.view')
-						->setArgument('filter_rst', 1)
-				))->addClass(ZBX_STYLE_BTN_ALT)
-			]))->addClass('mnz-docker-filterbar')
-		)
-);
+				]
+			]))->setWidth(ZBX_TEXTAREA_FILTER_STANDARD_WIDTH),
+			new CSubmitButton(_('Filter'), 'filter_set', 1),
+			(new CRedirectButton(_('Reset'),
+				(new CUrl('zabbix.php'))
+					->setArgument('action', 'monzphere.docker.view')
+					->setArgument('filter_rst', 1)
+			))->addClass(ZBX_STYLE_BTN_ALT)
+		]))->addClass('mnz-docker-filterbar')
+	);
 
 if ($data['host'] === null) {
 	$html_page
+		->addItem($filter)
+		->addItem($filterbar)
 		->addItem(
 			(new CTableInfo())->setNoDataMessage(
 				$data['hosts']
@@ -177,63 +168,197 @@ if ($data['host'] === null) {
 	return;
 }
 
-$html_page->addItem(
-	(new CDiv([
-		new CLink(_('Docker nodes'), (new CUrl('zabbix.php'))->setArgument('action', 'monzphere.docker.list')),
-		(new CSpan('/'))->addClass('mnz-docker-breadcrumb-sep'),
-		(new CSpan($data['host']['name']))->addClass('mnz-docker-breadcrumb-current')
-	]))
-		->addClass('mnz-docker-breadcrumb')
-		->setAttribute('aria-label', _('Breadcrumb'))
-);
-
 $host_enabled = (int) $data['host']['status'] === HOST_STATUS_MONITORED;
 
 $overview = DockerFormatter::formatOverview($data['overview']);
 
 $memory_parts = explode(' ', $overview['memory_total'], 2);
 
-$hostbar_stats = (new CDiv([
-	$makeStat('total', _('Total containers'), $overview['total'], _('total')),
-	$makeStat('running', _('Running'), $overview['running'], _('running')),
-	$makeStat('stopped', _('Stopped'), $overview['stopped'], _('stopped')),
-	$makeStat('cpu', _('Total CPU usage'), $overview['cpu_total'], '%'),
-	$makeStat('memory', _('Total memory usage'), $memory_parts[0], $memory_parts[1] ?? '')
+$makeIconButton = static function (string $modifier, string $label): CTag {
+	return (new CTag('button', true))
+		->setAttribute('type', 'button')
+		->addClass('mnz-docker-iconbtn')
+		->addClass('mnz-docker-iconbtn-'.$modifier)
+		->setId('mnz-docker-btn-'.$modifier)
+		->setAttribute('aria-label', $label)
+		->setTitle($label);
+};
+
+$kebab_menu = (new CDiv([
+	(new CLink(_('Docker nodes'), (new CUrl('zabbix.php'))->setArgument('action', 'monzphere.docker.list')))
+		->addClass('mnz-docker-menu-item'),
+	(new CLink(_('Latest data'), (new CUrl('zabbix.php'))
+		->setArgument('action', 'latest.view')
+		->setArgument('hostids', [$data['host']['hostid']])
+		->setArgument('filter_set', 1)
+	))->addClass('mnz-docker-menu-item'),
+	(new CTag('button', true, _('Edit node')))
+		->setAttribute('type', 'button')
+		->setId('mnz-docker-menu-edit')
+		->addClass('mnz-docker-menu-item')
 ]))
-	->addClass('mnz-docker-hostbar-stats')
-	->setId('mnz-docker-cards');
+	->setId('mnz-docker-kebab-menu')
+	->addClass('mnz-docker-menu')
+	->setAttribute('hidden', 'hidden');
+
+$meta_parts = [];
+
+if ($data['agent_address'] !== '') {
+	$meta_parts[] = (new CSpan([_('host').': ', $data['agent_address']]));
+}
+
+if ($data['node']['uptime'] !== null) {
+	$meta_parts[] = (new CSpan([_('Uptime').': ', DockerFormatter::shortDuration($data['node']['uptime'])]));
+}
+
+$head_actions = [];
+
+if ($data['agent_address'] !== '') {
+	$head_actions[] = (new CTag('button', true, [
+		(new CSpan())->addClass('mnz-docker-btn-icon')->addClass('mnz-docker-btn-icon-ssh'),
+		new CSpan('SSH')
+	]))
+		->setAttribute('type', 'button')
+		->setId('mnz-docker-btn-ssh')
+		->addClass('mnz-docker-btn')
+		->setTitle(_('Copy SSH command'));
+}
+
+$head_actions[] = (new CTag('button', true, [
+	(new CSpan())->addClass('mnz-docker-btn-icon')->addClass('mnz-docker-btn-icon-edit'),
+	new CSpan(_('Edit Node'))
+]))
+	->setAttribute('type', 'button')
+	->setId('mnz-docker-btn-edit')
+	->addClass('mnz-docker-btn')
+	->addClass('mnz-docker-btn-primary');
 
 $html_page->addItem(
 	(new CDiv([
-		(new CLink('←', (new CUrl('zabbix.php'))->setArgument('action', 'monzphere.docker.list')))
-			->addClass('mnz-docker-hostbar-back')
-			->setTitle(_('Back to Docker nodes')),
-		(new CSpan($data['host']['name']))->addClass('mnz-docker-hostbar-name'),
-		(new CSpan($host_enabled ? _('Enabled') : _('Disabled')))
-			->addClass($host_enabled ? 'mnz-docker-hostbar-enabled' : 'mnz-docker-hostbar-disabled'),
-		(new CHostAvailability())->setInterfaces($data['host']['interfaces']),
-		$hostbar_stats
-	]))->addClass('mnz-docker-hostbar')
+		(new CDiv([
+			(new CDiv([
+				new CLink(_('Nodes'), (new CUrl('zabbix.php'))->setArgument('action', 'monzphere.docker.list')),
+				(new CSpan('›'))->addClass('mnz-docker-breadcrumb-sep'),
+				(new CSpan($data['host']['name']))->addClass('mnz-docker-breadcrumb-current')
+			]))
+				->addClass('mnz-docker-breadcrumb')
+				->setAttribute('aria-label', _('Breadcrumb')),
+			(new CDiv([
+				(new CSpan($host_enabled ? _('Enabled') : _('Disabled')))
+					->addClass($host_enabled ? ZBX_STYLE_GREEN : ZBX_STYLE_RED),
+				(new CHostAvailability())->setInterfaces($data['host']['interfaces'])
+			]))->addClass('mnz-docker-topbar-chips'),
+			$meta_parts ? (new CDiv($meta_parts))->addClass('mnz-docker-topbar-meta') : null
+		]))->addClass('mnz-docker-topbar-info'),
+		(new CDiv(array_merge($head_actions, [
+			$makeIconButton('filter', _('Toggle filters')),
+			$makeIconButton('refresh', _('Refresh now')),
+			(new CDiv([
+				$makeIconButton('kebab', _('More actions')),
+				$kebab_menu
+			]))->addClass('mnz-docker-kebab-wrap')
+		])))->addClass('mnz-docker-topbar-actions')
+	]))->addClass('mnz-docker-topbar')
 );
 
+$html_page->addItem(
+	(new CDiv($filterbar))
+		->setId('mnz-docker-filters')
+		->setAttribute('hidden', 'hidden')
+);
+
+$cpu_series = [];
+
+foreach ($data['containers'] as $container) {
+	if (!$container['is_running']) {
+		continue;
+	}
+
+	foreach ($container['cpu_history'] as [$clock, $value]) {
+		$bucket = intdiv((int) $clock, 1440);
+		$cpu_series[$bucket] = ($cpu_series[$bucket] ?? 0) + (float) $value;
+	}
+}
+
+ksort($cpu_series);
+
+$cpu_history = [];
+
+foreach ($cpu_series as $bucket => $value) {
+	$cpu_history[] = [$bucket * 1440, $value];
+}
+
+$memory_pct = ($data['node']['mem_total'] !== null && (float) $data['node']['mem_total'] > 0)
+	? (int) round(min(100, (float) $data['overview']['memory_total'] / (float) $data['node']['mem_total'] * 100))
+	: 0;
+
+$makeStatSegment = static function (string $modifier, string $label, $value, $unit, $aside): CDiv {
+	return (new CDiv([
+		(new CDiv($label))->addClass('mnz-docker-statseg-label'),
+		(new CDiv([
+			(new CSpan($value))->addClass('mnz-docker-card-value'),
+			$unit !== '' ? (new CSpan($unit))->addClass('mnz-docker-card-unit') : null,
+			$aside !== null ? (new CDiv($aside))->addClass('mnz-docker-statseg-aside') : null
+		]))->addClass('mnz-docker-statseg-figure')
+	]))
+		->addClass('mnz-docker-statseg')
+		->addClass('mnz-docker-card-'.$modifier);
+};
+
+$html_page->addItem(
+	(new CDiv([
+		$makeStatSegment('total', _('Containers'), $overview['total'], '', null),
+		$makeStatSegment('running', _('Running'), $overview['running'], '', null),
+		$makeStatSegment('stopped', _('Stopped / Err'), $overview['stopped'], '', null),
+		$makeStatSegment('cpu', _('CPU usage'), $overview['cpu_total'], '%',
+			$makeSparkline($cpu_history, 'up')
+		),
+		$makeStatSegment('memory', _('Memory (used)'), $memory_parts[0], $memory_parts[1] ?? '',
+			(new CDiv(
+				(new CDiv())
+					->addClass('mnz-docker-progress-fill')
+					->setId('mnz-docker-memory-fill')
+					->setAttribute('style', 'width: '.$memory_pct.'%;')
+			))->addClass('mnz-docker-progress')
+		)
+	]))
+		->addClass('mnz-docker-statstrip')
+		->setId('mnz-docker-cards')
+);
+
+$problems_badge = (new CDiv())
+	->setId('mnz-docker-problems-badge')
+	->addClass(ZBX_STYLE_PROBLEM_ICON_LIST)
+	->addClass('mnz-docker-tab-problems');
+
+foreach ($data['problems_by_severity'] as $severity => $count) {
+	$problems_badge->addItem(
+		(new CSpan($count))
+			->addClass(ZBX_STYLE_PROBLEM_ICON_LIST_ITEM)
+			->addClass(CSeverityHelper::getStatusStyle($severity))
+			->setTitle(CSeverityHelper::getName($severity))
+	);
+}
+
 $tabs = [
-	['latest', _('Latest data')],
-	['problems', _('Problems')],
-	['graphs', _('Graphs')],
-	['web', _('Web')],
-	['inventory', _('Inventory')],
-	['node', _('Node info')]
+	['latest', _('Latest data'), null],
+	['problems', _('Problems'), $problems_badge],
+	['graphs', _('Graphs'), null],
+	['web', _('Web'), null],
+	['inventory', _('Inventory'), null]
 ];
 
 $tab_items = [];
 
-foreach ($tabs as [$key, $label]) {
-	$tab_items[] = (new CSpan($label))
+foreach ($tabs as [$key, $label, $badge]) {
+	$tab = (new CSpan([$label, $badge]))
 		->addClass('mnz-docker-tab')
 		->setAttribute('data-mnz-tab', $key)
 		->setAttribute('role', 'tab')
 		->setAttribute('tabindex', '0')
 		->setAttribute('aria-selected', 'false');
+
+	$tab_items[] = $tab;
 }
 
 $tab_items[] = (new CSpan(_('Containers')))
@@ -244,40 +369,55 @@ $tab_items[] = (new CSpan(_('Containers')))
 	->setAttribute('tabindex', '0')
 	->setAttribute('aria-selected', 'true');
 
+foreach ([['images', _('Images')], ['node', _('Node info')]] as [$key, $label]) {
+	$tab_items[] = (new CSpan($label))
+		->addClass('mnz-docker-tab')
+		->setAttribute('data-mnz-tab', $key)
+		->setAttribute('role', 'tab')
+		->setAttribute('tabindex', '0')
+		->setAttribute('aria-selected', 'false');
+}
+
 $html_page->addItem(
 	(new CDiv($tab_items))
 		->addClass('mnz-docker-tabs')
 		->setAttribute('role', 'tablist')
 );
 
-$makeChip = static function (string $key, string $label, bool $active): CTag {
-	return (new CTag('button', true, [
-		new CSpan($label),
-		(new CSpan())->addClass('mnz-docker-chip-count')
-	]))
-		->setAttribute('type', 'button')
-		->addClass('mnz-docker-chip')
-		->addClass($active ? 'mnz-docker-chip-active' : null)
-		->setAttribute('data-mnz-chip', $key)
-		->setAttribute('aria-pressed', $active ? 'true' : 'false');
-};
+$status_select = (new CTag('select', true, [
+	(new CTag('option', true, _('All')))->setAttribute('value', 'all'),
+	(new CTag('option', true, _('Running')))->setAttribute('value', 'running'),
+	(new CTag('option', true, _('Stopped')))->setAttribute('value', 'stopped')
+]))
+	->setId('mnz-docker-status')
+	->addClass('mnz-docker-status-select')
+	->setAttribute('aria-label', _('Filter by status'));
 
 $toolbar = (new CDiv([
 	(new CTag('input', false))
 		->setId('mnz-docker-search')
 		->setAttribute('type', 'search')
-		->setAttribute('placeholder', _('Filter by name...'))
+		->setAttribute('placeholder', _('Filter containers...'))
 		->setAttribute('aria-label', _('Filter containers by name'))
 		->setAttribute('autocomplete', 'off')
 		->addClass('mnz-docker-search'),
 	(new CDiv([
-		$makeChip('all', _('All'), true),
-		$makeChip('running', _('Running'), false),
-		$makeChip('stopped', _('Stopped'), false)
-	]))
-		->addClass('mnz-docker-chips')
-		->setAttribute('role', 'group')
-		->setAttribute('aria-label', _('Filter by status'))
+		(new CSpan(_('Status').':'))->addClass('mnz-docker-status-label'),
+		$status_select
+	]))->addClass('mnz-docker-status-wrap'),
+	(new CDiv([
+		(new CTag('button', true, '‹'))
+			->setAttribute('type', 'button')
+			->setId('mnz-docker-pager-prev')
+			->addClass('mnz-docker-pager-btn')
+			->setAttribute('aria-label', _('Previous page')),
+		(new CSpan(''))->setId('mnz-docker-pager-info')->addClass('mnz-docker-pager-info'),
+		(new CTag('button', true, '›'))
+			->setAttribute('type', 'button')
+			->setId('mnz-docker-pager-next')
+			->addClass('mnz-docker-pager-btn')
+			->setAttribute('aria-label', _('Next page'))
+	]))->addClass('mnz-docker-pager')
 ]))->addClass('mnz-docker-toolbar');
 
 $makeSortHeader = static function (string $label, string $key): CSpan {
@@ -294,49 +434,49 @@ $table = (new CTableInfo())
 	->setHeader([
 		$makeSortHeader(_('Container name'), 'name'),
 		_('Status'),
-		$makeSortHeader(_('CPU usage'), 'cpu'),
+		$makeSortHeader(_('CPU % (24h)'), 'cpu'),
 		$makeSortHeader(_('Memory usage'), 'memory'),
-		_('Memory limit'),
-		_('Net I/O (in)'),
-		_('Net I/O (out)'),
-		$makeSortHeader(_('Uptime'), 'uptime')
+		_('Mem limit'),
+		_('Net I/O (rx/tx)'),
+		(new CColHeader($makeSortHeader(_('Uptime'), 'uptime')))->addClass('mnz-docker-col-right')
 	])
 	->setNoDataMessage(_('No container data collected yet.'));
 
 foreach ($data['containers'] as $container) {
-	$row = DockerFormatter::formatContainer($container);
-
-	$status_class = $row['is_running'] ? 'mnz-docker-status-running' : 'mnz-docker-status-stopped';
+	$row = DockerFormatter::formatContainer($container, $data['node']['mem_total']);
 
 	$table->addRow((new CRow([
-		(new CDiv([
-			(new CSpan())->addClass('mnz-docker-dot')->addClass($status_class),
-			(new CSpan())->addClass('mnz-docker-container-icon'),
-			(new CLinkAction($row['name']))
-				->addClass('mnz-docker-name')
-				->setAttribute('data-mnz-container', $row['name'])
-		]))->addClass('mnz-docker-name-cell'),
+		(new CLinkAction($row['name']))
+			->addClass('mnz-docker-name')
+			->setAttribute('data-mnz-container', $row['name']),
+
+		(new CSpan($row['status_text']))
+			->addClass('mnz-docker-state')
+			->addClass('mnz-docker-state-'.$row['status_kind'])
+			->addClass('js-status'),
 
 		(new CDiv([
-			(new CSpan())->addClass('mnz-docker-status-icon')->addClass($status_class),
-			(new CSpan($row['status']))->addClass('mnz-docker-status')->addClass($status_class)
-		]))->addClass('mnz-docker-status-cell'),
-
-		(new CDiv([
-			(new CSpan($row['cpu']))->addClass('mnz-docker-metric-value'),
-			$makeSparkline($container['cpu_history'], $row['is_running'])
+			(new CSpan($row['cpu']))->addClass('mnz-docker-metric-value')->addClass('js-cpu'),
+			$makeSparkline($container['cpu_history'], $row['status_kind'])
 		]))->addClass('mnz-docker-metric-cell'),
 
 		(new CDiv([
-			(new CSpan($row['memory']))->addClass('mnz-docker-metric-value'),
-			$makeSparkline($container['memory_history'], $row['is_running'])
+			(new CSpan($row['memory']))->addClass('mnz-docker-metric-value')->addClass('js-mem-val'),
+			$makeSparkline($container['memory_history'], $row['status_kind'])
 		]))->addClass('mnz-docker-metric-cell'),
 
-		$row['memory_limit'],
-		$row['net_in'],
-		$row['net_out'],
-		$row['uptime']
+		(new CSpan($row['memory_limit']))->addClass('js-limit'),
+
+		(new CDiv([
+			(new CSpan($row['net_in']))->addClass('mnz-docker-net-rx')->addClass('js-rx'),
+			(new CSpan('/'))->addClass('mnz-docker-net-sep'),
+			(new CSpan($row['net_out']))->addClass('mnz-docker-net-tx')->addClass('js-tx')
+		]))->addClass('mnz-docker-netcell'),
+
+		(new CCol((new CSpan($row['uptime']))->addClass('js-uptime')))->addClass('mnz-docker-col-right')
 	]))
+		->addClass($row['status_kind'] === 'restarting' ? 'mnz-docker-row-restarting' : null)
+		->addClass(in_array($row['status_kind'], ['down', 'off'], true) ? 'mnz-docker-row-off' : null)
 		->setAttribute('data-mnz-name', mb_strtolower($row['name']))
 		->setAttribute('data-mnz-status', $row['is_running'] ? 'running' : 'stopped')
 		->setAttribute('data-mnz-cpu', (string) $row['cpu_raw'])
@@ -349,12 +489,7 @@ $table_section = (new CDiv([
 	(new CTag('h4', true, _('Container metrics (latest)')))->addClass('mnz-docker-section-title'),
 	$toolbar,
 	$table,
-	$data['paging'] ?? null,
-
-	(new CDiv())
-		->setId('mnz-docker-table-stats')
-		->addClass('mnz-docker-table-stats')
-		->setAttribute('aria-live', 'polite')
+	$data['paging'] ?? null
 ]))->addClass('mnz-docker-section');
 
 $modal = (new CDiv(
@@ -383,6 +518,11 @@ $html_page
 		(new CDiv([$table_section, $makeFooter()]))->setId('mnz-docker-content')
 	)
 	->addItem(
+		(new CDiv($filter))
+			->setId('mnz-docker-timefilter')
+			->setAttribute('hidden', 'hidden')
+	)
+	->addItem(
 		(new CDiv())
 			->setId('mnz-docker-panel')
 			->addClass('mnz-docker-panel')
@@ -394,7 +534,8 @@ $html_page
 (new CScriptTag('monzphere_docker.init('.json_encode([
 	'hostid' => $data['filter']['hostid'],
 	'refresh_interval' => $data['refresh_interval'],
-	'active_tab' => $data['active_docker_tab'] ?? ''
+	'active_tab' => $data['active_docker_tab'] ?? '',
+	'ssh_command' => $data['agent_address'] !== '' ? 'ssh '.$data['agent_address'] : ''
 ]).');'))
 	->setOnDocumentReady()
 	->show();
