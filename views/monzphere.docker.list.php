@@ -65,11 +65,22 @@ $filter_form = (new CFormGrid())
 		)
 	])
 	->addItem([
-		new CLabel(_('Name'), 'filter_name'),
+		new CLabel(_('Hosts'), 'filter_hostids__ms'),
 		new CFormField(
-			(new CTextBox('filter_name', $data['filter']['name']))
-				->setWidth(ZBX_TEXTAREA_FILTER_SMALL_WIDTH)
-				->setAttribute('placeholder', _('Node name'))
+			(new CMultiSelect([
+				'name' => 'filter_hostids[]',
+				'object_name' => 'hosts',
+				'data' => $data['filter']['hosts'],
+				'popup' => [
+					'parameters' => [
+						'srctbl' => 'hosts',
+						'srcfld1' => 'hostid',
+						'dstfrm' => 'zbx_filter',
+						'dstfld1' => 'filter_hostids_',
+						'with_monitored_items' => true
+					]
+				]
+			]))->setWidth(ZBX_TEXTAREA_FILTER_STANDARD_WIDTH)
 		)
 	]);
 

@@ -16,7 +16,7 @@ use Manager;
 
 class DockerList extends CController {
 	public const PROFILE_GROUPIDS = 'web.monzphere.docker.list.filter.groupids';
-	public const PROFILE_NAME = 'web.monzphere.docker.list.filter.name';
+	public const PROFILE_HOSTIDS = 'web.monzphere.docker.list.filter.hostids';
 
 	private const NODE_KEYS = [
 		'docker.containers.total' => 'total',
@@ -34,7 +34,7 @@ class DockerList extends CController {
 	protected function checkInput(): bool {
 		$fields = [
 			'filter_groupids' =>	'array_db hstgrp.groupid',
-			'filter_name' =>		'string',
+			'filter_hostids' =>		'array_db hosts.hostid',
 			'filter_set' =>			'in 1',
 			'filter_rst' =>			'in 1',
 			'page' =>				'ge 1'
@@ -56,22 +56,33 @@ class DockerList extends CController {
 	protected function doAction(): void {
 		if ($this->hasInput('filter_rst')) {
 			CProfile::deleteIdx(self::PROFILE_GROUPIDS);
-			CProfile::delete(self::PROFILE_NAME);
+			CProfile::deleteIdx(self::PROFILE_HOSTIDS);
+			CProfile::delete('web.monzphere.docker.list.filter.name');
 		}
 		elseif ($this->hasInput('filter_set')) {
 			CProfile::updateArray(self::PROFILE_GROUPIDS, $this->getInput('filter_groupids', []),
 				PROFILE_TYPE_ID
 			);
-			CProfile::update(self::PROFILE_NAME, trim($this->getInput('filter_name', '')), PROFILE_TYPE_STR);
+			CProfile::updateArray(self::PROFILE_HOSTIDS, $this->getInput('filter_hostids', []),
+				PROFILE_TYPE_ID
+			);
 		}
 
 		$groupids = CProfile::getArray(self::PROFILE_GROUPIDS, []);
-		$name = CProfile::get(self::PROFILE_NAME, '');
+		$filter_hostids = CProfile::getArray(self::PROFILE_HOSTIDS, []);
 
 		$groups = $groupids
 			? API::HostGroup()->get([
 				'output' => ['groupid', 'name'],
 				'groupids' => $groupids,
+				'preservekeys' => true
+			])
+			: [];
+
+		$filter_hosts = $filter_hostids
+			? API::Host()->get([
+				'output' => ['hostid', 'name'],
+				'hostids' => $filter_hostids,
 				'preservekeys' => true
 			])
 			: [];
@@ -84,6 +95,10 @@ class DockerList extends CController {
 
 		$docker_hostids = array_unique(array_column($docker_items, 'hostid'));
 
+		if ($filter_hosts) {
+			$docker_hostids = array_values(array_intersect($docker_hostids, array_keys($filter_hosts)));
+		}
+
 		$search_limit = CSettingsHelper::get(CSettingsHelper::SEARCH_LIMIT);
 
 		$hosts = $docker_hostids
@@ -94,7 +109,6 @@ class DockerList extends CController {
 				],
 				'hostids' => $docker_hostids,
 				'groupids' => $groups ? array_keys($groups) : null,
-				'search' => $name !== '' ? ['name' => $name] : null,
 				'preservekeys' => true,
 				'sortfield' => 'name',
 				'limit' => $search_limit
@@ -142,7 +156,10 @@ class DockerList extends CController {
 			'filter' => [
 				'groupids' => $groups ? array_keys($groups) : [],
 				'groups' => array_values($groups),
-				'name' => $name
+				'hosts' => array_map(
+					static fn (array $host): array => ['id' => $host['hostid'], 'name' => $host['name']],
+					array_values($filter_hosts)
+				)
 			],
 			'paging' => $paging,
 			'nodes' => $nodes,
