@@ -438,8 +438,7 @@ $table = (new CTableInfo())
 		$makeSortHeader(_('CPU % (24h)'), 'cpu'),
 		$makeSortHeader(_('Memory usage'), 'memory'),
 		_('Mem limit'),
-		_('Net I/O (rx/tx)'),
-		(new CColHeader($makeSortHeader(_('Uptime'), 'uptime')))->addClass('mnz-docker-col-right')
+		_('Net I/O (rx/tx)')
 	])
 	->setNoDataMessage(_('No container data collected yet.'));
 
@@ -472,9 +471,7 @@ foreach ($data['containers'] as $container) {
 			(new CSpan($row['net_in']))->addClass('mnz-docker-net-rx')->addClass('js-rx'),
 			(new CSpan('/'))->addClass('mnz-docker-net-sep'),
 			(new CSpan($row['net_out']))->addClass('mnz-docker-net-tx')->addClass('js-tx')
-		]))->addClass('mnz-docker-netcell'),
-
-		(new CCol((new CSpan($row['uptime']))->addClass('js-uptime')))->addClass('mnz-docker-col-right')
+		]))->addClass('mnz-docker-netcell')
 	]))
 		->addClass($row['status_kind'] === 'restarting' ? 'mnz-docker-row-restarting' : null)
 		->addClass(in_array($row['status_kind'], ['down', 'off'], true) ? 'mnz-docker-row-off' : null)
@@ -482,7 +479,6 @@ foreach ($data['containers'] as $container) {
 		->setAttribute('data-mnz-status', $row['is_running'] ? 'running' : 'stopped')
 		->setAttribute('data-mnz-cpu', (string) $row['cpu_raw'])
 		->setAttribute('data-mnz-memory', (string) $row['memory_raw'])
-		->setAttribute('data-mnz-uptime', (string) $row['uptime_raw'])
 	);
 }
 

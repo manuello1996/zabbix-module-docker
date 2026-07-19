@@ -950,12 +950,10 @@ window.monzphere_docker = new class {
 			set('.js-limit', container.memory_limit);
 			set('.js-rx', container.net_in);
 			set('.js-tx', container.net_out);
-			set('.js-uptime', container.uptime);
 
 			row.dataset.mnzStatus = container.is_running ? 'running' : 'stopped';
 			row.dataset.mnzCpu = String(container.cpu_raw);
 			row.dataset.mnzMemory = String(container.memory_raw);
-			row.dataset.mnzUptime = String(container.uptime_raw);
 		}
 
 		this._applyTableState();
