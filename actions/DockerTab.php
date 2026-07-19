@@ -384,7 +384,7 @@ class DockerTab extends CController {
 					->addClass(CSeverityHelper::getStyle($severity)),
 				$name_link,
 				zbx_date2age($problem['clock']),
-				(int) $problem['acknowledged'] === EVENT_ACKNOWLEDGED
+				$problem['acknowledged'] == EVENT_ACKNOWLEDGED
 					? (new CSpan(_('Yes')))->addClass('mnz-docker-status-running')
 					: (new CSpan(_('No')))->addClass('mnz-docker-status-stopped')
 			]);

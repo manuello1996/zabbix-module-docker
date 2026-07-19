@@ -42,6 +42,14 @@ window.monzphere_docker = new class {
 			}
 		});
 
+		jQuery.subscribe('acknowledge.create', () => {
+			this._tab_cache.delete('problems');
+
+			if (this._isActiveTab('problems')) {
+				this._loadTab('problems', true);
+			}
+		});
+
 		this._initRefreshStatus();
 
 		this._applyTableState();
@@ -375,12 +383,14 @@ window.monzphere_docker = new class {
 		return active !== null && active.dataset.mnzTab === key;
 	}
 
-	_loadTab(key) {
+	_loadTab(key, silent = false) {
 		const panel = this._panel;
 
 		if (!this._tab_cache.has(key)) {
-			panel.innerHTML = '<div class="mnz-docker-loading">'
-				+ <?= json_encode(_('Loading...')) ?> + '</div>';
+			if (!silent) {
+				panel.innerHTML = '<div class="mnz-docker-loading">'
+					+ <?= json_encode(_('Loading...')) ?> + '</div>';
+			}
 
 			const url = new Curl('zabbix.php');
 
@@ -809,6 +819,16 @@ window.monzphere_docker = new class {
 
 				this._updateOverview(response);
 				this._updateTable(response.containers);
+
+				if (this._isActiveTab('problems')) {
+					const busy = [...document.querySelectorAll('.overlay-dialogue.modal, .menu-popup')]
+						.some((el) => el.offsetParent !== null);
+
+					if (!busy) {
+						this._tab_cache.delete('problems');
+						this._loadTab('problems', true);
+					}
+				}
 			})
 			.catch(() => {
 				this._registerRefreshFailure();
