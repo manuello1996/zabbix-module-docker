@@ -102,11 +102,11 @@ monzphere_docker/
 ├── manifest.json                    # module manifest (v2.0)
 ├── Module.php                       # menu entry + time selector registration
 ├── actions/
-│   ├── DockerList.php               # nodes overview
-│   ├── DockerView.php               # node detail
-│   ├── DockerRefresh.php            # auto-refresh endpoint (JSON, CSRF)
-│   ├── DockerTab.php                # host tab panels (JSON)
-│   └── DockerContainer.php          # container modal (JSON)
+│   ├── CControllerDockerList.php       # nodes overview
+│   ├── CControllerDockerView.php       # node detail
+│   ├── CControllerDockerRefresh.php    # auto-refresh endpoint (JSON, CSRF)
+│   ├── CControllerDockerTab.php        # host tab panels (JSON)
+│   └── CControllerDockerContainer.php  # container modal (JSON)
 ├── includes/
 │   ├── DockerCollector.php          # metric collection / normalization
 │   └── DockerFormatter.php          # display formatting
@@ -116,9 +116,14 @@ monzphere_docker/
 │   └── js/
 │       ├── monzphere.docker.list.js.php
 │       └── monzphere.docker.view.js.php
-└── assets/css/
-    ├── blue-theme.css
-    └── dark-theme.css
+├── templates/
+│   └── docker_by_zabbix_agent_2.yaml   # bundled template (networks/volumes items)
+└── assets/
+    ├── css/
+    │   ├── blue-theme.css
+    │   └── dark-theme.css
+    └── img/
+        └── zabbix-partner.svg
 ```
 
 ## Uninstall
