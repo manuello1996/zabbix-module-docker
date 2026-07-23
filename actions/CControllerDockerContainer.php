@@ -204,21 +204,11 @@ class CControllerDockerContainer extends CController {
 
 				$facts = [];
 				$ip = (string) ($network['IPAddress'] ?? '');
-				$ip_prefix = (int) ($network['IPPrefixLen'] ?? 0);
-				$ipv6 = (string) ($network['GlobalIPv6Address'] ?? '');
-				$ipv6_prefix = (int) ($network['GlobalIPv6PrefixLen'] ?? 0);
 
-				$facts[] = $this->makeNetworkFact(_('IP address'),
-					$ip !== '' ? $ip.($ip_prefix > 0 ? '/'.$ip_prefix : '') : '-'
-				);
+				$facts[] = $this->makeNetworkFact(_('IP address'), $ip !== '' ? $ip : '-');
 
 				foreach ([
-					[_('Gateway'), $network['Gateway'] ?? ''],
-					[_('MAC address'), $network['MacAddress'] ?? ''],
-					[_('IPv6 address'), $ipv6 !== '' ? $ipv6.($ipv6_prefix > 0 ? '/'.$ipv6_prefix : '') : ''],
-					[_('IPv6 gateway'), $network['IPv6Gateway'] ?? ''],
-					[_('Network ID'), $network['NetworkID'] ?? ''],
-					[_('Endpoint ID'), $network['EndpointID'] ?? '']
+					[_('Network ID'), $network['NetworkID'] ?? '']
 				] as [$label, $value]) {
 					if ((string) $value !== '') {
 						$facts[] = $this->makeNetworkFact($label, (string) $value);
@@ -242,23 +232,7 @@ class CControllerDockerContainer extends CController {
 					);
 				}
 
-				$aliases = array_values(array_filter(
-					array_map('strval', (array) ($network['Aliases'] ?? [])),
-					'strlen'
-				));
-
-				if ($aliases) {
-					$facts[] = $this->makeNetworkFact(_('Aliases'),
-						(new CDiv(array_map(
-							static fn (string $alias): CSpan => new CSpan($alias),
-							$aliases
-						)))->addClass('mnz-docker-modal-network-list')
-					);
-				}
-
 				foreach ([
-					[_('Driver options'), $network['DriverOpts'] ?? null],
-					[_('IPAM configuration'), $network['IPAMConfig'] ?? null],
 					[_('Links'), $network['Links'] ?? null]
 				] as [$label, $value]) {
 					if ($value !== null && $value !== [] && $value !== '') {
