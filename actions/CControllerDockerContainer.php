@@ -3,6 +3,7 @@
 namespace Modules\MonzphereDocker\Actions;
 
 use API;
+use CLink;
 use CController;
 use CControllerResponseData;
 use CDiv;
@@ -14,7 +15,9 @@ use CWebUser;
 
 class CControllerDockerContainer extends CController {
 	private const FIELDS = [
+		'docker.container.description' => 'description',
 		'docker.container_info.image' => 'image',
+		'docker.container_info.networks' => 'networks',
 		'docker.container_info.restart_count' => 'restart_count',
 		'docker.container_info.state.exitcode' => 'exitcode',
 		'docker.container_info.state.health' => 'health',
@@ -108,13 +111,17 @@ class CControllerDockerContainer extends CController {
 
 		$content = (new CDiv())->addClass('mnz-docker-modal-content');
 		$content->addItem($this->makeIdentityStrip($by_prefix));
+		$content->addItem($this->makeNetworkSection($by_prefix));
 
 		foreach ($this->makeChartCells($by_prefix) as $cell) {
 			$content->addItem($cell);
 		}
 
+		$description = trim((string) ($this->rawValue($by_prefix, 'docker.container.description') ?? ''));
+
 		$this->setResponse(new CControllerResponseData(['main_block' => json_encode([
-			'html' => $content->toString()
+			'html' => $content->toString(),
+			'description' => $description
 		])]));
 	}
 
@@ -174,6 +181,133 @@ class CControllerDockerContainer extends CController {
 				->addClass('mnz-docker-idchip-image')
 				->setTitle($image)
 		]))->addClass('mnz-docker-idbar');
+	}
+
+	private function makeNetworkSection(array $by_prefix): CDiv {
+		$raw = $this->rawValue($by_prefix, 'docker.container_info.networks');
+		$networks = $raw !== null ? json_decode($raw, true) : null;
+		$body = (new CDiv())->addClass('mnz-docker-modal-network-grid');
+
+		if (!is_array($networks) || !$networks) {
+			$body->addItem(
+				(new CDiv(_('No network information collected for this container.')))
+					->addClass('mnz-docker-muted')
+			);
+		}
+		else {
+			ksort($networks);
+
+			foreach ($networks as $network_name => $network) {
+				if (!is_array($network)) {
+					continue;
+				}
+
+				$facts = [];
+				$ip = (string) ($network['IPAddress'] ?? '');
+				$ip_prefix = (int) ($network['IPPrefixLen'] ?? 0);
+				$ipv6 = (string) ($network['GlobalIPv6Address'] ?? '');
+				$ipv6_prefix = (int) ($network['GlobalIPv6PrefixLen'] ?? 0);
+
+				$facts[] = $this->makeNetworkFact(_('IP address'),
+					$ip !== '' ? $ip.($ip_prefix > 0 ? '/'.$ip_prefix : '') : '-'
+				);
+
+				foreach ([
+					[_('Gateway'), $network['Gateway'] ?? ''],
+					[_('MAC address'), $network['MacAddress'] ?? ''],
+					[_('IPv6 address'), $ipv6 !== '' ? $ipv6.($ipv6_prefix > 0 ? '/'.$ipv6_prefix : '') : ''],
+					[_('IPv6 gateway'), $network['IPv6Gateway'] ?? ''],
+					[_('Network ID'), $network['NetworkID'] ?? ''],
+					[_('Endpoint ID'), $network['EndpointID'] ?? '']
+				] as [$label, $value]) {
+					if ((string) $value !== '') {
+						$facts[] = $this->makeNetworkFact($label, (string) $value);
+					}
+				}
+
+				$dns_names = array_values(array_filter(
+					array_map('strval', (array) ($network['DNSNames'] ?? [])),
+					'strlen'
+				));
+
+				if ($dns_names) {
+					$dns_nodes = [];
+
+					foreach ($dns_names as $dns_name) {
+						$dns_nodes[] = $this->makeDnsName($dns_name);
+					}
+
+					$facts[] = $this->makeNetworkFact(_('DNS names'),
+						(new CDiv($dns_nodes))->addClass('mnz-docker-modal-network-list')
+					);
+				}
+
+				$aliases = array_values(array_filter(
+					array_map('strval', (array) ($network['Aliases'] ?? [])),
+					'strlen'
+				));
+
+				if ($aliases) {
+					$facts[] = $this->makeNetworkFact(_('Aliases'),
+						(new CDiv(array_map(
+							static fn (string $alias): CSpan => new CSpan($alias),
+							$aliases
+						)))->addClass('mnz-docker-modal-network-list')
+					);
+				}
+
+				foreach ([
+					[_('Driver options'), $network['DriverOpts'] ?? null],
+					[_('IPAM configuration'), $network['IPAMConfig'] ?? null],
+					[_('Links'), $network['Links'] ?? null]
+				] as [$label, $value]) {
+					if ($value !== null && $value !== [] && $value !== '') {
+						$facts[] = $this->makeNetworkFact($label,
+							is_array($value)
+								? (string) json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+								: (string) $value
+						);
+					}
+				}
+
+				$body->addItem(
+					(new CDiv([
+						(new CTag('h6', true, (string) $network_name))
+							->addClass('mnz-docker-modal-network-name'),
+						new CDiv($facts)
+					]))->addClass('mnz-docker-modal-network-card')
+				);
+			}
+		}
+
+		return (new CDiv([
+			(new CTag('h5', true, _('Network information')))->addClass('mnz-docker-cell-title'),
+			$body
+		]))
+			->addClass('mnz-docker-cell')
+			->addClass('mnz-docker-cell-wide')
+			->addClass('mnz-docker-modal-network-section');
+	}
+
+	private function makeNetworkFact(string $label, $value): CDiv {
+		return (new CDiv([
+			(new CSpan($label))->addClass('mnz-docker-modal-network-label'),
+			(new CDiv($value))->addClass('mnz-docker-modal-network-value')
+		]))->addClass('mnz-docker-modal-network-fact');
+	}
+
+	private function makeDnsName(string $dns_name) {
+		$is_ch_fqdn = preg_match(
+			'/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+ch$/i',
+			$dns_name
+		) == 1;
+
+		return ($is_ch_fqdn
+			? (new CLink($dns_name, 'https://'.$dns_name))
+				->setTarget('_blank')
+				->setAttribute('rel', 'noopener noreferrer')
+			: new CSpan($dns_name)
+		)->addClass('mnz-docker-modal-network-list-item');
 	}
 
 	private function makeChartCells(array $by_prefix): array {

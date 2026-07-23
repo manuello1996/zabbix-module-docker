@@ -243,6 +243,10 @@ window.monzphere_docker = new class {
 		});
 
 		panel.addEventListener('click', (e) => {
+			if (e.target.closest('.mnz-docker-topo-dns-link') !== null) {
+				return;
+			}
+
 			const topo_node = e.target.closest('[data-mnz-container]');
 
 			if (topo_node !== null && panel.contains(topo_node)) {
@@ -619,7 +623,7 @@ window.monzphere_docker = new class {
 		}
 
 		this._modal_trigger = trigger;
-		modal.title.textContent = name;
+		this._setModalTitle(name);
 		modal.backdrop.hidden = false;
 		modal.dialog.focus();
 
@@ -657,6 +661,7 @@ window.monzphere_docker = new class {
 				}
 
 				if (seq === this._modal_seq && !modal.backdrop.hidden) {
+					this._setModalTitle(name, response.description ?? '');
 					modal.body.innerHTML = response.html;
 					this._hydrateCharts(modal.body);
 				}
@@ -666,6 +671,26 @@ window.monzphere_docker = new class {
 					this._showError(modal.body, () => this._loadContainer(name));
 				}
 			});
+	}
+
+	_setModalTitle(name, description = '') {
+		const title = this._modal?.title;
+
+		if (title === null || title === undefined) {
+			return;
+		}
+
+		title.textContent = name;
+
+		description = description.trim();
+
+		if (description !== '') {
+			const note = document.createElement('span');
+
+			note.className = 'mnz-docker-modal-title-description';
+			note.textContent = description;
+			title.append(note);
+		}
 	}
 
 	_closeModal() {

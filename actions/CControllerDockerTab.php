@@ -488,11 +488,20 @@ class CControllerDockerTab extends CController {
 						->addClass('mnz-docker-topo-ip')
 				];
 
-				if ($dns_names) {
-					$network_details[] = (new CSpan('·'))->addClass('mnz-docker-topo-detail-sep');
-					$network_details[] = (new CSpan(implode(', ', $dns_names)))
-						->addClass('mnz-docker-topo-dns')
-						->setTitle(implode(', ', $dns_names));
+				foreach ($dns_names as $dns_name) {
+					$is_ch_fqdn = preg_match(
+						'/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+ch$/i',
+						$dns_name
+					) == 1;
+
+					$dns = $is_ch_fqdn
+						? (new CLink($dns_name, 'https://'.$dns_name))
+							->setTarget('_blank')
+							->setAttribute('rel', 'noopener noreferrer')
+							->addClass('mnz-docker-topo-dns-link')
+						: new CSpan($dns_name);
+
+					$network_details[] = $dns->addClass('mnz-docker-topo-dns');
 				}
 
 				$nodes->addItem(
