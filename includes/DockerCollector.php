@@ -15,12 +15,12 @@ class DockerCollector {
 	];
 
 	public const CONTAINER_KEYS = [
+		'docker.container.description' => 'note',
 		'docker.container_info.state.status' => 'status',
 		'docker.container_info.state.exitcode' => 'exitcode',
 		'docker.container_info.restart_count' => 'restarts',
 		'docker.container_stats.cpu_pct_usage' => 'cpu',
 		'docker.container_stats.memory.usage_total' => 'memory',
-		'docker.container_stats.memory.limit' => 'memory_limit',
 		'docker.networks.rx_bytes' => 'net_in',
 		'docker.networks.tx_bytes' => 'net_out',
 		'docker.container_info.started' => 'started'
@@ -225,6 +225,7 @@ class DockerCollector {
 	private static function emptyContainer(string $name): array {
 		return [
 			'name' => $name,
+			'note' => null,
 			'status' => null,
 			'exitcode' => null,
 			'restarts' => null,
@@ -234,7 +235,6 @@ class DockerCollector {
 			'memory' => null,
 			'memory_itemid' => null,
 			'memory_history' => [],
-			'memory_limit' => null,
 			'net_in' => null,
 			'net_out' => null,
 			'started' => null,

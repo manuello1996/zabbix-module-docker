@@ -11,7 +11,6 @@ use CLink;
 use CLinkAction;
 use CMenuPopupHelper;
 use CPagerHelper;
-use CProfile;
 use CRoleHelper;
 use CSettingsHelper;
 use CUrl;
@@ -27,8 +26,6 @@ use Modules\MonzphereDocker\Includes\DockerFormatter;
 class CControllerDockerTab extends CController {
 	public const TIME_PROFILE_IDX = 'web.monzphere.docker.filter';
 
-	public const PROFILE_ACTIVE_TAB = 'web.monzphere.docker.active_tab';
-
 	protected function init(): void {
 		$this->disableCsrfValidation();
 	}
@@ -36,7 +33,7 @@ class CControllerDockerTab extends CController {
 	protected function checkInput(): bool {
 		$fields = [
 			'hostid' =>	'required|db hosts.hostid',
-			'tab' =>	'required|in latest,problems,graphs,web,inventory,node,images,volumes,networks,docker',
+			'tab' =>	'required|in problems,graphs,inventory,node,images,volumes,networks,docker',
 			'page' =>	'ge 1'
 		];
 
@@ -53,10 +50,8 @@ class CControllerDockerTab extends CController {
 
 	protected function checkPermissions(): bool {
 		$tab_rules = [
-			'latest' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'problems' => CRoleHelper::UI_MONITORING_PROBLEMS,
 			'graphs' => CRoleHelper::UI_MONITORING_HOSTS,
-			'web' => CRoleHelper::UI_MONITORING_HOSTS,
 			'inventory' => CRoleHelper::UI_INVENTORY_HOSTS,
 			'node' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'images' => CRoleHelper::UI_MONITORING_LATEST_DATA,
@@ -80,8 +75,6 @@ class CControllerDockerTab extends CController {
 		$tab = $this->getInput('tab');
 		$page = (int) $this->getInput('page', 1);
 
-		CProfile::update(self::PROFILE_ACTIVE_TAB, $tab === 'docker' ? '' : $tab, PROFILE_TYPE_STR);
-
 		if ($tab === 'docker') {
 			$this->setResponse(new CControllerResponseData(['main_block' => json_encode(['html' => ''])]));
 
@@ -89,10 +82,6 @@ class CControllerDockerTab extends CController {
 		}
 
 		switch ($tab) {
-			case 'latest':
-				$panel = $this->makeLatestPanel($hostid, $page);
-				break;
-
 			case 'problems':
 				$panel = $this->makeProblemsPanel($hostid, $page);
 				break;
@@ -117,10 +106,6 @@ class CControllerDockerTab extends CController {
 				$panel = $this->makeNetworksPanel($hostid);
 				break;
 
-			case 'web':
-				$panel = $this->makeWebPanel($hostid, $page);
-				break;
-
 			default:
 				$panel = $this->makeInventoryPanel($hostid);
 		}
@@ -128,44 +113,6 @@ class CControllerDockerTab extends CController {
 		$this->setResponse(new CControllerResponseData(['main_block' => json_encode([
 			'html' => $panel->toString()
 		])]));
-	}
-
-	private function makeLatestPanel(string $hostid, int $page): CDiv {
-		$search_limit = (int) CSettingsHelper::get(CSettingsHelper::SEARCH_LIMIT);
-
-		$items = API::Item()->get([
-			'output' => ['itemid', 'name', 'lastvalue', 'lastclock', 'units', 'value_type'],
-			'selectValueMap' => ['mappings'],
-			'hostids' => $hostid,
-			'monitored' => true,
-			'webitems' => true,
-			'sortfield' => 'name',
-			'limit' => $search_limit + 1
-		]);
-
-		$paging = CPagerHelper::paginate($page, $items, ZBX_SORT_UP, $this->getTabUrl('latest'));
-
-		$table = (new CTableInfo())
-			->setHeader([_('Name'), _('Last check'), _('Last value')])
-			->setNoDataMessage(_('No data found.'));
-
-		foreach ($items as $item) {
-			$has_value = $item['lastclock'] > 0;
-
-			$table->addRow([
-				$item['name'],
-				$has_value
-					? (new CSpan(zbx_date2age($item['lastclock']).' '._('ago')))
-						->setTitle(zbx_date2str(DATE_TIME_FORMAT_SECONDS, $item['lastclock']))
-					: '-',
-				$has_value
-					? (new CSpan(formatHistoryValue($item['lastvalue'], $item)))
-						->addClass('mnz-docker-latest-value')
-					: '-'
-			]);
-		}
-
-		return $this->wrapPanel(_('Latest data'), new CDiv([$table, $paging]));
 	}
 
 	private function getTabUrl(string $tab): CUrl {
@@ -491,7 +438,15 @@ class CControllerDockerTab extends CController {
 			}
 
 			foreach ($nets as $net_name => $net) {
-				$networks[$net_name][$name] = (string) ($net['IPAddress'] ?? '');
+				$dns_names = array_values(array_filter(
+					array_map('strval', (array) ($net['DNSNames'] ?? [])),
+					'strlen'
+				));
+
+				$networks[$net_name][$name] = [
+					'ip' => (string) ($net['IPAddress'] ?? ''),
+					'dns_names' => $dns_names
+				];
 				$memberships[$name][] = $net_name;
 			}
 		}
@@ -524,9 +479,21 @@ class CControllerDockerTab extends CController {
 
 			ksort($members);
 
-			foreach ($members as $container => $ip) {
+			foreach ($members as $container => $network_info) {
 				$kind = $container_state[$container] ?? 'up';
 				$extra_nets = array_values(array_diff($memberships[$container] ?? [], [$net_name]));
+				$dns_names = $network_info['dns_names'];
+				$network_details = [
+					(new CSpan($network_info['ip'] !== '' ? $network_info['ip'] : '-'))
+						->addClass('mnz-docker-topo-ip')
+				];
+
+				if ($dns_names) {
+					$network_details[] = (new CSpan('·'))->addClass('mnz-docker-topo-detail-sep');
+					$network_details[] = (new CSpan(implode(', ', $dns_names)))
+						->addClass('mnz-docker-topo-dns')
+						->setTitle(implode(', ', $dns_names));
+				}
 
 				$nodes->addItem(
 					(new CDiv([
@@ -534,7 +501,7 @@ class CControllerDockerTab extends CController {
 							->addClass($kind === 'up' ? 'mnz-docker-status-running' : 'mnz-docker-status-stopped'),
 						(new CDiv([
 							(new CSpan($container))->addClass('mnz-docker-topo-name'),
-							(new CSpan($ip !== '' ? $ip : '-'))->addClass('mnz-docker-topo-ip')
+							(new CDiv($network_details))->addClass('mnz-docker-topo-details')
 						]))->addClass('mnz-docker-topo-text'),
 						$extra_nets
 							? (new CSpan('⇄'))
@@ -733,37 +700,6 @@ class CControllerDockerTab extends CController {
 		}
 
 		return $this->wrapPanel(_('Graphs'), $panel);
-	}
-
-	private function makeWebPanel(string $hostid, int $page): CDiv {
-		$search_limit = (int) CSettingsHelper::get(CSettingsHelper::SEARCH_LIMIT);
-
-		$httptests = API::HttpTest()->get([
-			'output' => ['httptestid', 'name', 'status', 'delay', 'nextcheck'],
-			'hostids' => $hostid,
-			'sortfield' => 'name',
-			'limit' => $search_limit + 1
-		]);
-
-		$paging = CPagerHelper::paginate($page, $httptests, ZBX_SORT_UP, $this->getTabUrl('web'));
-
-		$table = (new CTableInfo())
-			->setHeader([_('Name'), _('Interval'), _('Status')])
-			->setNoDataMessage(_('No web scenarios found.'));
-
-		foreach ($httptests as $httptest) {
-			$enabled = (int) $httptest['status'] === HTTPTEST_STATUS_ACTIVE;
-
-			$table->addRow([
-				$httptest['name'],
-				$httptest['delay'],
-				$enabled
-					? (new CSpan(_('Enabled')))->addClass('mnz-docker-status-running')
-					: (new CSpan(_('Disabled')))->addClass('mnz-docker-status-stopped')
-			]);
-		}
-
-		return $this->wrapPanel(_('Web scenarios'), new CDiv([$table, $paging]));
 	}
 
 	private function makeInventoryPanel(string $hostid): CDiv {

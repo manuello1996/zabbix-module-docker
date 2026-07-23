@@ -2,11 +2,9 @@
 ?>
 <script>
 window.monzphere_docker = new class {
-	init({hostid, refresh_interval, active_tab, ssh_command}) {
+	init({hostid, refresh_interval}) {
 		this._hostid = hostid;
 		this._refresh_interval = refresh_interval;
-		this._active_tab = active_tab ?? '';
-		this._ssh_command = ssh_command ?? '';
 		this._timer = null;
 		this._panel = null;
 		this._content = null;
@@ -53,10 +51,6 @@ window.monzphere_docker = new class {
 		this._initRefreshStatus();
 
 		this._applyTableState();
-
-		if (this._active_tab !== '') {
-			document.querySelector(`.mnz-docker-tab[data-mnz-tab="${CSS.escape(this._active_tab)}"]`)?.click();
-		}
 
 		window.addEventListener('resize', () => {
 			clearTimeout(this._resize_debounce);
@@ -117,21 +111,6 @@ window.monzphere_docker = new class {
 				});
 
 				overlay.$dialogue[0].addEventListener('dialogue.submit', on_submit, {once: true});
-			},
-
-			editHost(hostid) {
-				const original_url = location.href;
-
-				const overlay = PopUp('popup.host.edit', {hostid}, {
-					dialogueid: 'host_edit',
-					dialogue_class: 'modal-popup-large',
-					prevent_navigation: true
-				});
-
-				overlay.$dialogue[0].addEventListener('dialogue.submit', on_submit, {once: true});
-				overlay.$dialogue[0].addEventListener('dialogue.close', () => {
-					history.replaceState({}, '', original_url);
-				}, {once: true});
 			}
 		};
 	}
@@ -180,45 +159,6 @@ window.monzphere_docker = new class {
 			});
 		}
 
-		document.getElementById('mnz-docker-menu-edit')?.addEventListener('click', () => {
-			if (kebab_menu !== null) {
-				kebab_menu.hidden = true;
-			}
-
-			view.editHost(this._hostid);
-		});
-
-		document.getElementById('mnz-docker-btn-edit')?.addEventListener('click', () => {
-			view.editHost(this._hostid);
-		});
-
-		const ssh_btn = document.getElementById('mnz-docker-btn-ssh');
-
-		if (ssh_btn !== null && this._ssh_command !== '') {
-			ssh_btn.addEventListener('click', () => {
-				const done = () => {
-					const label = ssh_btn.querySelector('span:last-child');
-					const original = label.textContent;
-
-					label.textContent = <?= json_encode(_('Copied!')) ?>;
-					setTimeout(() => { label.textContent = original; }, 1500);
-				};
-
-				if (navigator.clipboard?.writeText) {
-					navigator.clipboard.writeText(this._ssh_command).then(done).catch(() => {});
-				}
-				else {
-					const helper = document.createElement('textarea');
-
-					helper.value = this._ssh_command;
-					document.body.append(helper);
-					helper.select();
-					document.execCommand('copy');
-					helper.remove();
-					done();
-				}
-			});
-		}
 	}
 
 	_hydrateCharts(root, force = false) {
@@ -563,7 +503,9 @@ window.monzphere_docker = new class {
 		}
 
 		const filtered = rows.filter((row) =>
-			(search === '' || row.dataset.mnzName.includes(search))
+			(search === ''
+				|| row.dataset.mnzName.includes(search)
+				|| (row.dataset.mnzNote ?? '').includes(search))
 			&& (status === 'all' || row.dataset.mnzStatus === status)
 		);
 
@@ -945,12 +887,13 @@ window.monzphere_docker = new class {
 				}
 			};
 
+			set('.js-note', container.note);
 			set('.js-cpu', container.cpu);
 			set('.js-mem-val', container.memory);
-			set('.js-limit', container.memory_limit);
 			set('.js-rx', container.net_in);
 			set('.js-tx', container.net_out);
 
+			row.dataset.mnzNote = container.note.toLocaleLowerCase();
 			row.dataset.mnzStatus = container.is_running ? 'running' : 'stopped';
 			row.dataset.mnzCpu = String(container.cpu_raw);
 			row.dataset.mnzMemory = String(container.memory_raw);

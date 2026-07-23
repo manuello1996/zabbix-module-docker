@@ -110,6 +110,7 @@ $table = (new CTableInfo())
 	->setId('mnz-docker-nodes-table')
 	->setHeader([
 		_('Node'),
+		_('Notes'),
 		_('Availability'),
 		_('Problems'),
 		_('Docker version'),
@@ -144,6 +145,8 @@ foreach ($data['nodes'] as $node) {
 			(new CSpan())->addClass('mnz-docker-container-icon'),
 			(new CLink($node['name'], $detail_url))->addClass('mnz-docker-name')
 		]))->addClass('mnz-docker-name-cell'),
+
+		$node['inventory']['notes'] ?? '',
 
 		(new CHostAvailability())->setInterfaces($node['interfaces']),
 

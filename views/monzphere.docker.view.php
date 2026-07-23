@@ -186,15 +186,6 @@ $makeIconButton = static function (string $modifier, string $label): CTag {
 
 $kebab_menu = (new CDiv([
 	(new CLink(_('Docker nodes'), (new CUrl('zabbix.php'))->setArgument('action', 'monzphere.docker.list')))
-		->addClass('mnz-docker-menu-item'),
-	(new CLink(_('Latest data'), (new CUrl('zabbix.php'))
-		->setArgument('action', 'latest.view')
-		->setArgument('hostids', [$data['host']['hostid']])
-		->setArgument('filter_set', 1)
-	))->addClass('mnz-docker-menu-item'),
-	(new CTag('button', true, _('Edit node')))
-		->setAttribute('type', 'button')
-		->setId('mnz-docker-menu-edit')
 		->addClass('mnz-docker-menu-item')
 ]))
 	->setId('mnz-docker-kebab-menu')
@@ -211,27 +202,8 @@ if ($data['node']['uptime'] !== null) {
 	$meta_parts[] = (new CSpan([_('Uptime').': ', DockerFormatter::shortDuration($data['node']['uptime'])]));
 }
 
-$head_actions = [];
-
-if ($data['agent_address'] !== '') {
-	$head_actions[] = (new CTag('button', true, [
-		(new CSpan())->addClass('mnz-docker-btn-icon')->addClass('mnz-docker-btn-icon-ssh'),
-		new CSpan('SSH')
-	]))
-		->setAttribute('type', 'button')
-		->setId('mnz-docker-btn-ssh')
-		->addClass('mnz-docker-btn')
-		->setTitle(_('Copy SSH command'));
-}
-
-$head_actions[] = (new CTag('button', true, [
-	(new CSpan())->addClass('mnz-docker-btn-icon')->addClass('mnz-docker-btn-icon-edit'),
-	new CSpan(_('Edit Node'))
-]))
-	->setAttribute('type', 'button')
-	->setId('mnz-docker-btn-edit')
-	->addClass('mnz-docker-btn')
-	->addClass('mnz-docker-btn-primary');
+$host_note = trim((string) ($data['host']['inventory']['notes'] ?? ''));
+$meta_parts[] = (new CSpan([_('Note').': ', $host_note !== '' ? $host_note : '-']));
 
 $html_page->addItem(
 	(new CDiv([
@@ -250,14 +222,14 @@ $html_page->addItem(
 			]))->addClass('mnz-docker-topbar-chips'),
 			$meta_parts ? (new CDiv($meta_parts))->addClass('mnz-docker-topbar-meta') : null
 		]))->addClass('mnz-docker-topbar-info'),
-		(new CDiv(array_merge($head_actions, [
+		(new CDiv([
 			$makeIconButton('filter', _('Toggle filters')),
 			$makeIconButton('refresh', _('Refresh now')),
 			(new CDiv([
 				$makeIconButton('kebab', _('More actions')),
 				$kebab_menu
 			]))->addClass('mnz-docker-kebab-wrap')
-		])))->addClass('mnz-docker-topbar-actions')
+		]))->addClass('mnz-docker-topbar-actions')
 	]))->addClass('mnz-docker-topbar')
 );
 
@@ -340,38 +312,26 @@ foreach ($data['problems_by_severity'] as $severity => $count) {
 	);
 }
 
-$tabs = [
-	['latest', _('Latest data'), null],
-	['problems', _('Problems'), $problems_badge],
-	['graphs', _('Graphs'), null],
-	['web', _('Web'), null],
-	['inventory', _('Inventory'), null]
-];
-
-$tab_items = [];
-
-foreach ($tabs as [$key, $label, $badge]) {
-	$tab = (new CSpan([$label, $badge]))
+$tab_items = [
+	(new CSpan(_('Containers')))
 		->addClass('mnz-docker-tab')
-		->setAttribute('data-mnz-tab', $key)
+		->addClass('mnz-docker-tab-active')
+		->setAttribute('data-mnz-tab', '')
 		->setAttribute('role', 'tab')
 		->setAttribute('tabindex', '0')
-		->setAttribute('aria-selected', 'false');
+		->setAttribute('aria-selected', 'true')
+];
 
-	$tab_items[] = $tab;
-}
-
-$tab_items[] = (new CSpan(_('Containers')))
-	->addClass('mnz-docker-tab')
-	->addClass('mnz-docker-tab-active')
-	->setAttribute('data-mnz-tab', '')
-	->setAttribute('role', 'tab')
-	->setAttribute('tabindex', '0')
-	->setAttribute('aria-selected', 'true');
-
-foreach ([['images', _('Images')], ['volumes', _('Volumes')], ['networks', _('Networks')],
-		['node', _('Node info')]] as [$key, $label]) {
-	$tab_items[] = (new CSpan($label))
+foreach ([
+	['problems', _('Problems'), $problems_badge],
+	['graphs', _('Graphs'), null],
+	['images', _('Images'), null],
+	['volumes', _('Volumes'), null],
+	['networks', _('Networks'), null],
+	['node', _('Node info'), null],
+	['inventory', _('Inventory'), null]
+] as [$key, $label, $badge]) {
+	$tab_items[] = (new CSpan([$label, $badge]))
 		->addClass('mnz-docker-tab')
 		->setAttribute('data-mnz-tab', $key)
 		->setAttribute('role', 'tab')
@@ -399,7 +359,7 @@ $toolbar = (new CDiv([
 		->setId('mnz-docker-search')
 		->setAttribute('type', 'search')
 		->setAttribute('placeholder', _('Filter containers...'))
-		->setAttribute('aria-label', _('Filter containers by name'))
+		->setAttribute('aria-label', _('Filter containers by name or note'))
 		->setAttribute('autocomplete', 'off')
 		->addClass('mnz-docker-search'),
 	(new CDiv([
@@ -434,10 +394,10 @@ $table = (new CTableInfo())
 	->setAttribute('data-mnz-total', (string) ($data['containers_total'] ?? count($data['containers'])))
 	->setHeader([
 		$makeSortHeader(_('Container name'), 'name'),
+		_('Note'),
 		_('Status'),
 		$makeSortHeader(_('CPU % (24h)'), 'cpu'),
 		$makeSortHeader(_('Memory usage'), 'memory'),
-		_('Mem limit'),
 		_('Net I/O (rx/tx)')
 	])
 	->setNoDataMessage(_('No container data collected yet.'));
@@ -449,6 +409,8 @@ foreach ($data['containers'] as $container) {
 		(new CLinkAction($row['name']))
 			->addClass('mnz-docker-name')
 			->setAttribute('data-mnz-container', $row['name']),
+
+		(new CSpan($row['note']))->addClass('js-note'),
 
 		(new CSpan($row['status_text']))
 			->addClass('mnz-docker-state')
@@ -465,8 +427,6 @@ foreach ($data['containers'] as $container) {
 			$makeSparkline($container['memory_history'], $row['status_kind'])
 		]))->addClass('mnz-docker-metric-cell'),
 
-		(new CSpan($row['memory_limit']))->addClass('js-limit'),
-
 		(new CDiv([
 			(new CSpan($row['net_in']))->addClass('mnz-docker-net-rx')->addClass('js-rx'),
 			(new CSpan('/'))->addClass('mnz-docker-net-sep'),
@@ -476,6 +436,7 @@ foreach ($data['containers'] as $container) {
 		->addClass($row['status_kind'] === 'restarting' ? 'mnz-docker-row-restarting' : null)
 		->addClass(in_array($row['status_kind'], ['down', 'off'], true) ? 'mnz-docker-row-off' : null)
 		->setAttribute('data-mnz-name', mb_strtolower($row['name']))
+		->setAttribute('data-mnz-note', mb_strtolower($row['note']))
 		->setAttribute('data-mnz-status', $row['is_running'] ? 'running' : 'stopped')
 		->setAttribute('data-mnz-cpu', (string) $row['cpu_raw'])
 		->setAttribute('data-mnz-memory', (string) $row['memory_raw'])
@@ -530,9 +491,7 @@ $html_page
 
 (new CScriptTag('monzphere_docker.init('.json_encode([
 	'hostid' => $data['filter']['hostid'],
-	'refresh_interval' => $data['refresh_interval'],
-	'active_tab' => $data['active_docker_tab'] ?? '',
-	'ssh_command' => $data['agent_address'] !== '' ? 'ssh '.$data['agent_address'] : ''
+	'refresh_interval' => $data['refresh_interval']
 ]).');'))
 	->setOnDocumentReady()
 	->show();

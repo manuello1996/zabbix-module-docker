@@ -107,6 +107,7 @@ class CControllerDockerList extends CController {
 				'selectInterfaces' => ['interfaceid', 'type', 'available', 'useip', 'ip', 'dns', 'port', 'error',
 					'details'
 				],
+				'selectInventory' => ['notes'],
 				'hostids' => $docker_hostids,
 				'groupids' => $groups ? array_keys($groups) : null,
 				'preservekeys' => true,

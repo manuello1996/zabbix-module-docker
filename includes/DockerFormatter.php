@@ -17,10 +17,7 @@ class DockerFormatter {
 		[$status_text, $status_kind] = self::containerState($container);
 
 		$memory_pct = null;
-
-		$memory_base = ($container['memory_limit'] !== null && (float) $container['memory_limit'] > 0)
-			? (float) $container['memory_limit']
-			: (float) ($node_mem_total ?? 0);
+		$memory_base = (float) ($node_mem_total ?? 0);
 
 		if ($container['is_running'] && $container['memory'] !== null && $memory_base > 0) {
 			$memory_pct = (int) round(min(100, (float) $container['memory'] / $memory_base * 100));
@@ -28,6 +25,9 @@ class DockerFormatter {
 
 		return [
 			'name' => $container['name'],
+			'note' => $container['note'] !== null && $container['note'] !== ''
+				? $container['note']
+				: self::noData(),
 			'status' => $container['status'] !== null ? $container['status'] : self::noData(),
 			'status_text' => $status_text,
 			'status_kind' => $status_kind,
@@ -39,9 +39,6 @@ class DockerFormatter {
 			'memory' => $container['is_running'] && $container['memory'] !== null
 				? self::bytes((float) $container['memory'])
 				: '0 B',
-			'memory_limit' => $container['memory_limit'] !== null && (float) $container['memory_limit'] > 0
-				? self::bytes((float) $container['memory_limit'])
-				: self::noData(),
 			'net_in' => self::rate($container['is_running'] ? $container['net_in'] : 0),
 			'net_out' => self::rate($container['is_running'] ? $container['net_out'] : 0),
 			'uptime' => $container['uptime'] !== null

@@ -107,6 +107,7 @@ class CControllerDockerView extends CController {
 				'selectInterfaces' => ['interfaceid', 'type', 'available', 'useip', 'ip', 'dns', 'port', 'error',
 					'details'
 				],
+				'selectInventory' => ['notes'],
 				'hostids' => [$hostid]
 			]);
 
@@ -151,7 +152,6 @@ class CControllerDockerView extends CController {
 
 			'active_tab' => CProfile::get('web.monzphere.docker.filter.active', 0),
 
-			'active_docker_tab' => CProfile::get(CControllerDockerTab::PROFILE_ACTIVE_TAB, ''),
 			'hosts' => array_values($hosts),
 			'host' => $host,
 			'overview' => null,
@@ -173,7 +173,6 @@ class CControllerDockerView extends CController {
 					$data['agent_address'] = (int) $interface['useip'] == INTERFACE_USE_IP
 						? $interface['ip']
 						: $interface['dns'];
-					$data['agent_available'] = (int) $interface['available'];
 					break;
 				}
 			}

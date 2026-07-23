@@ -36,11 +36,12 @@ A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages t
   - Group / name filtering persisted per user, native pagination
 - **Node detail page**
   - Host bar with availability badges (native hint popups) and compact stat pills
-  - Container table: status, CPU and memory with inline SVG sparklines, memory limit, network I/O, uptime
+  - Container table: status, CPU and memory with inline SVG sparklines, network I/O, uptime
   - Client-side search, status chips and sortable columns that survive auto-refresh
   - Container detail modal with ad-hoc CPU / memory / network charts
   - Native time selector (presets + calendar) shared with the Graphs tab
-  - Host tabs rendered as module panels: Latest data, Problems (with native event menus), Graphs, Web, Inventory, Node info
+  - Host tabs rendered as module panels: Containers, Problems (with native event menus), Graphs, Images, Volumes,
+    Networks, Node info, Inventory
   - CSRF-protected auto-refresh with freshness indicator
 - **Theme aware** — ships with `blue-theme.css` and `dark-theme.css`, follows the active Zabbix theme
 - **Accessible** — ARIA tab semantics, keyboard navigation, visible focus, reduced-motion support
