@@ -618,6 +618,30 @@
 	text-decoration: underline;
 }
 
+.mnz-docker-topo-ports {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 2px;
+	margin-top: 3px;
+	padding-top: 4px;
+	border-top: 1px solid var(--mnz-docker-card-border);
+}
+
+.mnz-docker-topo-ports-label {
+	font-size: 9.5px;
+	font-weight: 600;
+	color: var(--mnz-docker-text-muted);
+	letter-spacing: .04em;
+	text-transform: uppercase;
+}
+
+.mnz-docker-topo-port {
+	color: var(--mnz-docker-text);
+	font-variant-numeric: tabular-nums;
+	overflow-wrap: anywhere;
+}
+
 .mnz-docker-topo-multi {
 	margin-left: auto;
 	color: var(--mnz-docker-blue);
@@ -925,6 +949,16 @@
 .mnz-docker-image-id {
 	font-size: 12px;
 	color: var(--mnz-docker-text-muted);
+}
+
+.mnz-docker-mount-path {
+	display: block;
+	max-width: 320px;
+	overflow-wrap: anywhere;
+}
+
+.mnz-docker-mount-groups {
+	margin-top: 12px;
 }
 
 .mnz-docker-status-running {

@@ -41,7 +41,7 @@ A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages t
   - Container detail modal with ad-hoc CPU / memory / network charts
   - Native time selector (presets + calendar) shared with the Graphs tab
   - Host tabs rendered as module panels: Containers, Problems (with native event menus), Graphs, Images, Volumes,
-    Networks, Node info, Inventory
+    Mounts, Networks, Node info, Inventory
   - CSRF-protected auto-refresh with freshness indicator
 - **Theme aware** — ships with `blue-theme.css` and `dark-theme.css`, follows the active Zabbix theme
 - **Accessible** — ARIA tab semantics, keyboard navigation, visible focus, reduced-motion support
@@ -54,7 +54,7 @@ A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages t
 | Zabbix agent 2 (with built-in Docker plugin) | 7.0+ |
 | Template | *Docker by Zabbix agent 2* (bundled copy in [`templates/`](templates/docker_by_zabbix_agent_2.yaml)) |
 
-The Volumes and Networks tabs need two extra items that are not part of the stock template: the dependent item `docker.volumes.raw` and the dependent item prototype `docker.container_info.networks["{#NAME}"]`, both with JSONPath extraction and discard-unchanged-with-heartbeat preprocessing. Import [`templates/docker_by_zabbix_agent_2.yaml`](templates/docker_by_zabbix_agent_2.yaml) (Data collection → Templates → Import) to get the template with these items included.
+The Volumes and Networks tabs need two extra items that are not part of the stock template: the dependent item `docker.volumes.raw` and the dependent item prototype `docker.container_info.networks["{#NAME}"]`, both with JSONPath extraction and discard-unchanged-with-heartbeat preprocessing. Import [`templates/docker_by_zabbix_agent_2.yaml`](templates/docker_by_zabbix_agent_2.yaml) (Data collection → Templates → Import) to get the template with these items included. The Mounts tab uses the stock `docker.containers` item and requires no additional template item.
 | PHP | 8.2 – 8.5 |
 
 ## Installation

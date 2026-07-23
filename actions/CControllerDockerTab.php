@@ -33,7 +33,7 @@ class CControllerDockerTab extends CController {
 	protected function checkInput(): bool {
 		$fields = [
 			'hostid' =>	'required|db hosts.hostid',
-			'tab' =>	'required|in problems,graphs,inventory,node,images,volumes,networks,docker',
+			'tab' =>	'required|in problems,graphs,inventory,node,images,volumes,mounts,networks,docker',
 			'page' =>	'ge 1'
 		];
 
@@ -56,6 +56,7 @@ class CControllerDockerTab extends CController {
 			'node' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'images' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'volumes' => CRoleHelper::UI_MONITORING_LATEST_DATA,
+			'mounts' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'networks' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'docker' => CRoleHelper::UI_MONITORING_LATEST_DATA
 		];
@@ -100,6 +101,10 @@ class CControllerDockerTab extends CController {
 
 			case 'volumes':
 				$panel = $this->makeVolumesPanel($hostid, $page);
+				break;
+
+			case 'mounts':
+				$panel = $this->makeMountsPanel($hostid, $page);
 				break;
 
 			case 'networks':
@@ -318,6 +323,85 @@ class CControllerDockerTab extends CController {
 		return array_key_exists($itemid, $last_values) ? $last_values[$itemid][0]['value'] : null;
 	}
 
+	private function getContainersSnapshot(string $hostid): array {
+		$items = API::Item()->get([
+			'output' => ['lastvalue', 'lastclock'],
+			'hostids' => $hostid,
+			'filter' => ['key_' => 'docker.containers'],
+			'monitored' => true
+		]);
+
+		if (!$items || (int) $items[0]['lastclock'] === 0) {
+			return ['status' => 'missing', 'containers' => [], 'lastclock' => 0];
+		}
+
+		$containers = json_decode($items[0]['lastvalue'], true);
+
+		if (!is_array($containers)) {
+			return [
+				'status' => 'invalid',
+				'containers' => [],
+				'lastclock' => (int) $items[0]['lastclock']
+			];
+		}
+
+		return [
+			'status' => 'ok',
+			'containers' => $containers,
+			'lastclock' => (int) $items[0]['lastclock']
+		];
+	}
+
+	private function getContainerStates(string $hostid): array {
+		$items = API::Item()->get([
+			'output' => ['itemid', 'key_', 'value_type'],
+			'hostids' => $hostid,
+			'search' => ['key_' => 'docker.container_info.state.status['],
+			'startSearch' => true,
+			'monitored' => true,
+			'preservekeys' => true
+		]);
+
+		if (!$items) {
+			return [];
+		}
+
+		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
+			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
+		));
+		$states = [];
+
+		foreach ($items as $itemid => $item) {
+			if (!array_key_exists($itemid, $last_values)
+					|| preg_match(
+						'/^docker\.container_info\.state\.status\["?\/?([^"\]]+)"?\]$/',
+						$item['key_'],
+						$matches
+					) != 1) {
+				continue;
+			}
+
+			switch ($last_values[$itemid][0]['value']) {
+				case 'running':
+					$states[$matches[1]] = 'up';
+					break;
+
+				case 'restarting':
+					$states[$matches[1]] = 'restarting';
+					break;
+
+				case 'exited':
+					$states[$matches[1]] = 'down';
+					break;
+
+				default:
+					$states[$matches[1]] = 'off';
+			}
+		}
+
+		return $states;
+	}
+
 	private function makeVolumesPanel(string $hostid, int $page): CDiv {
 		$raw = $this->textItemValue($hostid, 'docker.volumes.raw');
 
@@ -392,6 +476,179 @@ class CControllerDockerTab extends CController {
 		]));
 	}
 
+	private function makeMountsPanel(string $hostid, int $page): CDiv {
+		$snapshot = $this->getContainersSnapshot($hostid);
+
+		if ($snapshot['status'] === 'missing') {
+			return $this->wrapPanel(_('Mounts'),
+				(new CTableInfo())->setNoDataMessage(
+					_('No container mount data collected yet. Data appears after the next "Get containers" item update.')
+				)
+			);
+		}
+
+		if ($snapshot['status'] === 'invalid') {
+			return $this->wrapPanel(_('Mounts'),
+				(new CTableInfo())->setNoDataMessage(_('The collected container mount data is invalid.'))
+			);
+		}
+
+		$containers = $snapshot['containers'];
+		$mount_groups = [];
+		$mount_count = 0;
+		$read_write = 0;
+
+		foreach ($containers as $container) {
+			if (!is_array($container)) {
+				continue;
+			}
+
+			$names = array_values(array_filter(
+				array_map(
+					static fn ($name): string => ltrim((string) $name, '/'),
+					(array) ($container['Names'] ?? [])
+				),
+				'strlen'
+			));
+			$container_name = $names ? implode(', ', $names) : substr((string) ($container['Id'] ?? ''), 0, 12);
+			$container_id = (string) ($container['Id'] ?? '');
+			$group_key = $container_id !== '' ? $container_id : $container_name;
+
+			foreach ((array) ($container['Mounts'] ?? []) as $mount) {
+				if (!is_array($mount)) {
+					continue;
+				}
+
+				$is_read_write = (bool) ($mount['RW'] ?? false);
+
+				if (!array_key_exists($group_key, $mount_groups)) {
+					$mount_groups[$group_key] = [
+						'container' => $container_name,
+						'container_id' => $container_id,
+						'mounts' => []
+					];
+				}
+
+				$mount_groups[$group_key]['mounts'][] = [
+					'type' => (string) ($mount['Type'] ?? ''),
+					'name' => (string) ($mount['Name'] ?? ''),
+					'source' => (string) ($mount['Source'] ?? ''),
+					'destination' => (string) ($mount['Destination'] ?? ''),
+					'driver' => (string) ($mount['Driver'] ?? ''),
+					'mode' => (string) ($mount['Mode'] ?? ''),
+					'read_write' => $is_read_write,
+					'propagation' => (string) ($mount['Propagation'] ?? '')
+				];
+
+				$mount_count++;
+				$read_write += (int) $is_read_write;
+			}
+		}
+
+		$mount_groups = array_values($mount_groups);
+
+		foreach ($mount_groups as &$mount_group) {
+			usort($mount_group['mounts'], static fn (array $a, array $b): int =>
+				strnatcasecmp($a['destination'], $b['destination'])
+			);
+		}
+		unset($mount_group);
+
+		usort($mount_groups, static fn (array $a, array $b): int =>
+			strnatcasecmp($a['container'], $b['container'])
+		);
+
+		$pills = [];
+
+		foreach ([
+			[_('Mounts'), $mount_count],
+			[_('Containers'), count($mount_groups)],
+			[_('Read-write'), $read_write],
+			[_('Read-only'), $mount_count - $read_write]
+		] as [$label, $value]) {
+			$pills[] = (new CDiv([
+				(new CSpan($label))->addClass('mnz-docker-card-unit'),
+				(new CSpan((string) $value))->addClass('mnz-docker-card-value')
+			]))->addClass('mnz-docker-stat');
+		}
+
+		$paging = CPagerHelper::paginate($page, $mount_groups, ZBX_SORT_UP, $this->getTabUrl('mounts'));
+		$group_nodes = [];
+		$expand_all = $mount_count <= 6;
+
+		foreach ($mount_groups as $mount_group) {
+			$container_label = new CSpan($mount_group['container'] !== '' ? $mount_group['container'] : '-');
+
+			if ($mount_group['container_id'] !== '') {
+				$container_label->setTitle($mount_group['container_id']);
+			}
+
+			$table = (new CTableInfo())
+				->setHeader([
+					_('Type'),
+					_('Name'),
+					_('Source'),
+					_('Destination'),
+					_('Driver'),
+					_('Mode'),
+					_('Access'),
+					_('Propagation')
+				]);
+
+			foreach ($mount_group['mounts'] as $mount) {
+				$table->addRow([
+					$mount['type'] !== '' ? $mount['type'] : '-',
+					$mount['name'] !== '' ? $mount['name'] : '-',
+					(new CSpan($mount['source'] !== '' ? $mount['source'] : '-'))
+						->addClass('mnz-docker-image-id')
+						->addClass('mnz-docker-mount-path')
+						->setTitle($mount['source']),
+					(new CSpan($mount['destination'] !== '' ? $mount['destination'] : '-'))
+						->addClass('mnz-docker-image-id')
+						->addClass('mnz-docker-mount-path')
+						->setTitle($mount['destination']),
+					$mount['driver'] !== '' ? $mount['driver'] : '-',
+					$mount['mode'] !== '' ? $mount['mode'] : '-',
+					(new CSpan($mount['read_write'] ? _('Read-write') : _('Read-only')))
+						->addClass($mount['read_write'] ? 'mnz-docker-status-running' : 'mnz-docker-muted'),
+					$mount['propagation'] !== '' ? $mount['propagation'] : '-'
+				]);
+			}
+
+			$body = (new CDiv([$table]))->addClass('mnz-docker-graphgroup-body');
+
+			if (!$expand_all) {
+				$body->setAttribute('hidden', 'hidden');
+			}
+
+			$head = (new CTag('button', true, [
+				(new CSpan())->addClass('mnz-docker-graphgroup-caret'),
+				$container_label->addClass('mnz-docker-graphgroup-name'),
+				(new CSpan((string) count($mount_group['mounts'])))
+					->addClass('mnz-docker-graphgroup-count')
+			]))
+				->setAttribute('type', 'button')
+				->addClass('mnz-docker-graphgroup-head')
+				->addClass($expand_all ? 'mnz-docker-graphgroup-open' : null)
+				->setAttribute('aria-expanded', $expand_all ? 'true' : 'false');
+
+			$group_nodes[] = (new CDiv([
+				$head,
+				$body
+			]))->addClass('mnz-docker-graphgroup');
+		}
+
+		if (!$group_nodes) {
+			$group_nodes[] = (new CTableInfo())->setNoDataMessage(_('No container mounts found.'));
+		}
+
+		return $this->wrapPanel(_('Mounts'), new CDiv([
+			(new CDiv($pills))->addClass('mnz-docker-hostbar-stats')->addClass('mnz-docker-node-stats'),
+			(new CDiv($group_nodes))->addClass('mnz-docker-mount-groups'),
+			$paging
+		]));
+	}
+
 	private function makeNetworksPanel(string $hostid): CDiv {
 		$items = API::Item()->get([
 			'output' => ['itemid', 'key_', 'value_type'],
@@ -414,11 +671,45 @@ class CControllerDockerTab extends CController {
 			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
 		));
 
-		$container_state = [];
+		$container_state = $this->getContainerStates($hostid);
+		$container_ports = [];
+		$snapshot = $this->getContainersSnapshot($hostid);
 
-		foreach (DockerCollector::collect($hostid)['containers'] as $container) {
-			$row = DockerFormatter::formatContainer($container);
-			$container_state[$container['name']] = $row['status_kind'];
+		if ($snapshot['status'] === 'ok') {
+			foreach ($snapshot['containers'] as $raw_container) {
+				if (!is_array($raw_container)) {
+					continue;
+				}
+
+				$ports = [];
+
+				foreach ((array) ($raw_container['Ports'] ?? []) as $port) {
+					if (!is_array($port) || !array_key_exists('PrivatePort', $port)) {
+						continue;
+					}
+
+					$private = (string) $port['PrivatePort'].'/'.strtolower((string) ($port['Type'] ?? 'tcp'));
+					$public = array_key_exists('PublicPort', $port) ? (string) $port['PublicPort'] : '';
+
+					if ($public !== '') {
+						$public_ip = trim((string) ($port['IP'] ?? ''));
+						$ports[] = ($public_ip !== '' ? $public_ip.':' : '').$public.' -> '.$private;
+					}
+					else {
+						$ports[] = $private;
+					}
+				}
+
+				$ports = array_values(array_unique($ports));
+
+				foreach ((array) ($raw_container['Names'] ?? []) as $raw_name) {
+					$name = ltrim((string) $raw_name, '/');
+
+					if ($name !== '') {
+						$container_ports[$name] = $ports;
+					}
+				}
+			}
 		}
 
 		$networks = [];
@@ -503,6 +794,21 @@ class CControllerDockerTab extends CController {
 
 					$network_details[] = $dns->addClass('mnz-docker-topo-dns');
 				}
+
+				$port_nodes = [
+					(new CSpan(_('Ports')))->addClass('mnz-docker-topo-ports-label')
+				];
+
+				if (!empty($container_ports[$container])) {
+					foreach ($container_ports[$container] as $port) {
+						$port_nodes[] = (new CSpan($port))->addClass('mnz-docker-topo-port');
+					}
+				}
+				else {
+					$port_nodes[] = (new CSpan('-'))->addClass('mnz-docker-topo-port');
+				}
+
+				$network_details[] = (new CDiv($port_nodes))->addClass('mnz-docker-topo-ports');
 
 				$nodes->addItem(
 					(new CDiv([

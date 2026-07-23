@@ -327,6 +327,7 @@ foreach ([
 	['graphs', _('Graphs'), null],
 	['images', _('Images'), null],
 	['volumes', _('Volumes'), null],
+	['mounts', _('Mounts'), null],
 	['networks', _('Networks'), null],
 	['node', _('Node info'), null],
 	['inventory', _('Inventory'), null]
