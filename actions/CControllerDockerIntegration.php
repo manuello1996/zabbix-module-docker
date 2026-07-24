@@ -141,7 +141,7 @@ class CControllerDockerIntegration extends CController {
 		foreach ($items as $itemid => $item) {
 			[$prefix, $name] = $this->parseContainerKey($item['key_']);
 
-			if ($prefix === null || stripos($name, $search) === false) {
+			if ($prefix === null) {
 				continue;
 			}
 
@@ -168,7 +168,7 @@ class CControllerDockerIntegration extends CController {
 			))
 			: [];
 
-		foreach ($containers as &$container) {
+		foreach ($containers as $key => &$container) {
 			$itemid = $container['description_itemid'] ?? null;
 
 			if ($itemid !== null && array_key_exists($itemid, $last_values)) {
@@ -176,6 +176,12 @@ class CControllerDockerIntegration extends CController {
 			}
 
 			unset($container['description_itemid']);
+
+			if (stripos($container['name'], $search) === false
+					&& stripos($container['note'], $search) === false) {
+				unset($containers[$key]);
+				continue;
+			}
 
 			$host = $hosts[$container['hostid']];
 			$interface = $this->getPreferredInterface($host['interfaces']);
