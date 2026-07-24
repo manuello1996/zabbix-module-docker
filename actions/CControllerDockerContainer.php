@@ -8,10 +8,12 @@ use CController;
 use CControllerResponseData;
 use CDiv;
 use CRoleHelper;
+use CSettingsHelper;
 use CSpan;
 use CTag;
 use CUrl;
 use CWebUser;
+use Manager;
 
 class CControllerDockerContainer extends CController {
 	private const FIELDS = [
@@ -75,20 +77,17 @@ class CControllerDockerContainer extends CController {
 	protected function doAction(): void {
 		$hostid = $this->getInput('hostid');
 		$name = $this->getInput('name');
-
-		$keys = [];
-
-		foreach (array_merge(array_keys(self::FIELDS), self::CHART_KEYS) as $prefix) {
-			$keys[] = $prefix.'["/'.$name.'"]';
-			$keys[] = $prefix.'["'.$name.'"]';
-		}
+		$prefixes = array_values(array_unique(array_merge(array_keys(self::FIELDS), self::CHART_KEYS)));
 
 		$items = API::Item()->get([
-			'output' => ['itemid', 'name', 'key_', 'units', 'value_type', 'lastvalue', 'lastclock'],
+			'output' => ['itemid', 'name', 'key_', 'units', 'value_type'],
 			'selectValueMap' => ['mappings'],
 			'hostids' => $hostid,
-			'filter' => ['key_' => $keys],
-			'monitored' => true
+			'search' => ['key_' => $prefixes],
+			'searchByAny' => true,
+			'startSearch' => true,
+			'monitored' => true,
+			'preservekeys' => true
 		]);
 
 		if (!$items) {
@@ -99,14 +98,33 @@ class CControllerDockerContainer extends CController {
 			return;
 		}
 
+		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
+			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
+		));
 		$by_prefix = [];
 
-		foreach ($items as $item) {
-			$prefix = strstr($item['key_'], '[', true);
+		foreach ($items as $itemid => $item) {
+			if (preg_match('/^([a-z0-9._]+)\["?([^"\]]+)"?\]$/i', $item['key_'], $matches) != 1
+					|| ltrim($matches[2], '/') !== $name) {
+				continue;
+			}
 
-			if ($prefix !== false && !array_key_exists($prefix, $by_prefix)) {
+			$prefix = $matches[1];
+
+			if (!array_key_exists($prefix, $by_prefix)) {
+				$last_value = $last_values[$itemid][0] ?? null;
+				$item['lastvalue'] = $last_value['value'] ?? '';
+				$item['lastclock'] = (int) ($last_value['clock'] ?? 0);
 				$by_prefix[$prefix] = $item;
 			}
+		}
+
+		if (!$by_prefix) {
+			$this->setResponse(new CControllerResponseData(['main_block' => json_encode([
+				'error' => _('No data found for this container.')
+			])]));
+
+			return;
 		}
 
 		$content = (new CDiv())->addClass('mnz-docker-modal-content');

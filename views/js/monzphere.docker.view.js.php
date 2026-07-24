@@ -688,7 +688,7 @@ window.monzphere_docker = new class {
 			const note = document.createElement('span');
 
 			note.className = 'mnz-docker-modal-title-description';
-			note.textContent = description;
+			note.textContent = '- ' + description;
 			title.append(note);
 		}
 	}
