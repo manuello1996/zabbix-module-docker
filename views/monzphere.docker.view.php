@@ -9,18 +9,7 @@ $this->addJsFile('items.js');
 
 $this->includeJsFile('monzphere.docker.view.js.php');
 
-$makeFooter = static function (): CDiv {
-	return (new CDiv([
-		(new CSpan(_('Developed by MonZphere'))),
-		(new CSpan('|'))->addClass('mnz-docker-footer-sep'),
-		(new CLink(_('Documentation'), 'https://github.com/Monzphere/zabbix-module-docker#readme'))
-			->setTarget('_blank'),
-		(new CLink(_('Changelog'), 'https://github.com/Monzphere/zabbix-module-docker/releases'))
-			->setTarget('_blank'),
-		(new CLink(_('Community'), 'https://monzphere.com'))
-			->setTarget('_blank')
-	]))->addClass('mnz-docker-footer');
-};
+
 
 $makeSparkline = static function (array $history, string $kind): CDiv {
 	$width = 100;
@@ -162,7 +151,6 @@ if ($data['host'] === null) {
 					: _('No hosts with Docker metrics found. Link the "Docker by Zabbix agent 2" template to a host.')
 			)
 		)
-		->addItem($makeFooter())
 		->show();
 
 	return;

@@ -4,19 +4,6 @@ use Modules\MonzphereDocker\Includes\DockerFormatter;
 
 $this->includeJsFile('monzphere.docker.list.js.php', ['refresh_interval' => $data['refresh_interval']]);
 
-$makeFooter = static function (): CDiv {
-	return (new CDiv([
-		(new CSpan(_('Developed by MonZphere'))),
-		(new CSpan('|'))->addClass('mnz-docker-footer-sep'),
-		(new CLink(_('Documentation'), 'https://github.com/Monzphere/zabbix-module-docker#readme'))
-			->setTarget('_blank'),
-		(new CLink(_('Changelog'), 'https://github.com/Monzphere/zabbix-module-docker/releases'))
-			->setTarget('_blank'),
-		(new CLink(_('Community'), 'https://monzphere.com'))
-			->setTarget('_blank')
-	]))->addClass('mnz-docker-footer');
-};
-
 $makeStatSegment = static function (string $modifier, string $label, string $value, string $unit): CDiv {
 	return (new CDiv([
 		(new CDiv($label))->addClass('mnz-docker-statseg-label'),
@@ -186,5 +173,4 @@ $html_page
 			$data['paging']
 		]))->addClass('mnz-docker-section')
 	)
-	->addItem($makeFooter())
 	->show();
