@@ -1015,7 +1015,10 @@ class CControllerDockerTab extends CController {
 		$problems = API::Problem()->get([
 			'output' => ['eventid', 'objectid', 'name', 'clock', 'severity', 'acknowledged'],
 			'hostids' => $hostid,
-			'recent' => true,
+			'source' => EVENT_SOURCE_TRIGGERS,
+			'object' => EVENT_OBJECT_TRIGGER,
+			'suppressed' => false,
+			'symptom' => false,
 			'sortfield' => 'eventid',
 			'sortorder' => ZBX_SORT_DOWN,
 			'limit' => $search_limit + 1

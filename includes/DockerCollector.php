@@ -158,7 +158,10 @@ class DockerCollector {
 		$problems = API::Problem()->get([
 			'output' => ['severity'],
 			'hostids' => $hostid,
-			'recent' => true
+			'source' => EVENT_SOURCE_TRIGGERS,
+			'object' => EVENT_OBJECT_TRIGGER,
+			'suppressed' => false,
+			'symptom' => false
 		]);
 
 		$by_severity = [];
