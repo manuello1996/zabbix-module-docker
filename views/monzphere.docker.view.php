@@ -461,7 +461,7 @@ $modal = (new CDiv(
 
 $html_page
 	->addItem(
-		(new CDiv([$table_section, $makeFooter()]))->setId('mnz-docker-content')
+		(new CDiv($table_section))->setId('mnz-docker-content')
 	)
 	->addItem(
 		(new CDiv($filter))
