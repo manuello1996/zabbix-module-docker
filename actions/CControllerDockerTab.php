@@ -33,7 +33,7 @@ class CControllerDockerTab extends CController {
 	protected function checkInput(): bool {
 		$fields = [
 			'hostid' =>	'required|db hosts.hostid',
-			'tab' =>	'required|in problems,graphs,inventory,node,images,volumes,mounts,networks,docker',
+			'tab' =>	'required|in problems,graphs,node,images,volumes,mounts,networks,docker',
 			'page' =>	'ge 1'
 		];
 
@@ -52,7 +52,6 @@ class CControllerDockerTab extends CController {
 		$tab_rules = [
 			'problems' => CRoleHelper::UI_MONITORING_PROBLEMS,
 			'graphs' => CRoleHelper::UI_MONITORING_HOSTS,
-			'inventory' => CRoleHelper::UI_INVENTORY_HOSTS,
 			'node' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'images' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'volumes' => CRoleHelper::UI_MONITORING_LATEST_DATA,
@@ -112,7 +111,7 @@ class CControllerDockerTab extends CController {
 				break;
 
 			default:
-				$panel = $this->makeInventoryPanel($hostid);
+				$panel = $this->makeNodePanel($hostid);
 		}
 
 		$this->setResponse(new CControllerResponseData(['main_block' => json_encode([
@@ -202,10 +201,17 @@ class CControllerDockerTab extends CController {
 			}
 		}
 
-		return $this->wrapPanel(_('Node info'), new CDiv([
+		$body = [
 			(new CDiv($pills))->addClass('mnz-docker-hostbar-stats')->addClass('mnz-docker-node-stats'),
 			$table
-		]));
+		];
+
+		if (CWebUser::checkAccess(CRoleHelper::UI_INVENTORY_HOSTS)) {
+			$body[] = (new CTag('h5', true, _('Inventory')))->addClass('mnz-docker-node-inventory-title');
+			$body[] = $this->makeInventoryTable($hostid);
+		}
+
+		return $this->wrapPanel(_('Node info'), new CDiv($body));
 	}
 
 	private function makeImagesPanel(string $hostid, int $page): CDiv {
@@ -809,6 +815,89 @@ class CControllerDockerTab extends CController {
 		]));
 	}
 
+	public static function makeNetworkZone(string $network_name, array $members, array $container_state,
+			array $memberships, array $container_ports, bool $ports_available, bool $interactive = true): CDiv {
+		$nodes = (new CDiv())->addClass('mnz-docker-topo-nodes');
+
+		ksort($members);
+
+		foreach ($members as $container => $network_info) {
+			$kind = $container_state[$container] ?? 'up';
+			$extra_nets = array_values(array_diff($memberships[$container] ?? [], [$network_name]));
+			$network_details = [
+				(new CSpan($network_info['ip'] !== '' ? $network_info['ip'] : '-'))
+					->addClass('mnz-docker-topo-ip')
+			];
+
+			foreach ($network_info['dns_names'] as $dns_name) {
+				$is_ch_fqdn = preg_match(
+					'/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+ch$/i',
+					$dns_name
+				) == 1;
+
+				$dns = $is_ch_fqdn
+					? (new CLink($dns_name, 'https://'.$dns_name))
+						->setTarget('_blank')
+						->setAttribute('rel', 'noopener noreferrer')
+						->addClass('mnz-docker-topo-dns-link')
+					: new CSpan($dns_name);
+
+				$network_details[] = $dns->addClass('mnz-docker-topo-dns');
+			}
+
+			$port_nodes = [
+				(new CSpan(_('Ports')))->addClass('mnz-docker-topo-ports-label')
+			];
+
+			if (!empty($container_ports[$container])) {
+				foreach ($container_ports[$container] as $port) {
+					$port_nodes[] = (new CSpan($port))->addClass('mnz-docker-topo-port');
+				}
+			}
+			else {
+				$port_nodes[] = (new CSpan($ports_available ? '-' : _('No data')))
+					->addClass('mnz-docker-topo-port');
+			}
+
+			$network_details[] = (new CDiv($port_nodes))->addClass('mnz-docker-topo-ports');
+			$node = (new CDiv([
+				(new CSpan())->addClass('mnz-docker-dot')
+					->addClass($kind === 'up' ? 'mnz-docker-status-running' : 'mnz-docker-status-stopped'),
+				(new CDiv([
+					(new CSpan($container))->addClass('mnz-docker-topo-name'),
+					(new CDiv($network_details))->addClass('mnz-docker-topo-details')
+				]))->addClass('mnz-docker-topo-text'),
+				$extra_nets
+					? (new CSpan('⇄'))
+						->addClass('mnz-docker-topo-multi')
+						->setTitle(_('Also in').': '.implode(', ', $extra_nets))
+					: null
+			]))
+				->addClass('mnz-docker-topo-node')
+				->addClass($kind === 'restarting' ? 'mnz-docker-topo-node-bad' : null);
+
+			if ($interactive) {
+				$node
+					->setAttribute('data-mnz-container', $container)
+					->setAttribute('role', 'button')
+					->setAttribute('tabindex', '0');
+			}
+			else {
+				$node->addClass('mnz-docker-topo-node-static');
+			}
+
+			$nodes->addItem($node);
+		}
+
+		return (new CDiv([
+			(new CDiv([
+				(new CSpan($network_name))->addClass('mnz-docker-topo-zone-name'),
+				(new CSpan((string) count($members)))->addClass('mnz-docker-graphgroup-count')
+			]))->addClass('mnz-docker-topo-zone-head'),
+			$nodes
+		]))->addClass('mnz-docker-topo-zone');
+	}
+
 	private function makeNetworksPanel(string $hostid): CDiv {
 		$items = API::Item()->get([
 			'output' => ['itemid', 'key_', 'value_type'],
@@ -842,26 +931,7 @@ class CControllerDockerTab extends CController {
 					continue;
 				}
 
-				$ports = [];
-
-				foreach ((array) ($raw_container['Ports'] ?? []) as $port) {
-					if (!is_array($port) || !array_key_exists('PrivatePort', $port)) {
-						continue;
-					}
-
-					$private = (string) $port['PrivatePort'].'/'.strtolower((string) ($port['Type'] ?? 'tcp'));
-					$public = (int) ($port['PublicPort'] ?? 0);
-
-					if ($public > 0) {
-						$public_ip = trim((string) ($port['IP'] ?? ''));
-						$ports[] = ($public_ip !== '' ? $public_ip.':' : '').(string) $public.' -> '.$private;
-					}
-					else {
-						$ports[] = $private;
-					}
-				}
-
-				$ports = array_values(array_unique($ports));
+				$ports = DockerFormatter::containerPorts((array) ($raw_container['Ports'] ?? []));
 
 				foreach ((array) ($raw_container['Names'] ?? []) as $raw_name) {
 					$name = ltrim((string) $raw_name, '/');
@@ -926,83 +996,14 @@ class CControllerDockerTab extends CController {
 		$zones->addClass('mnz-docker-topo');
 
 		foreach ($networks as $net_name => $members) {
-			$nodes = new CDiv();
-			$nodes->addClass('mnz-docker-topo-nodes');
-
-			ksort($members);
-
-			foreach ($members as $container => $network_info) {
-				$kind = $container_state[$container] ?? 'up';
-				$extra_nets = array_values(array_diff($memberships[$container] ?? [], [$net_name]));
-				$dns_names = $network_info['dns_names'];
-				$network_details = [
-					(new CSpan($network_info['ip'] !== '' ? $network_info['ip'] : '-'))
-						->addClass('mnz-docker-topo-ip')
-				];
-
-				foreach ($dns_names as $dns_name) {
-					$is_ch_fqdn = preg_match(
-						'/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+ch$/i',
-						$dns_name
-					) == 1;
-
-					$dns = $is_ch_fqdn
-						? (new CLink($dns_name, 'https://'.$dns_name))
-							->setTarget('_blank')
-							->setAttribute('rel', 'noopener noreferrer')
-							->addClass('mnz-docker-topo-dns-link')
-						: new CSpan($dns_name);
-
-					$network_details[] = $dns->addClass('mnz-docker-topo-dns');
-				}
-
-				$port_nodes = [
-					(new CSpan(_('Ports')))->addClass('mnz-docker-topo-ports-label')
-				];
-
-				if (!empty($container_ports[$container])) {
-					foreach ($container_ports[$container] as $port) {
-						$port_nodes[] = (new CSpan($port))->addClass('mnz-docker-topo-port');
-					}
-				}
-				else {
-					$port_nodes[] = (new CSpan($ports_available ? '-' : _('No data')))
-						->addClass('mnz-docker-topo-port');
-				}
-
-				$network_details[] = (new CDiv($port_nodes))->addClass('mnz-docker-topo-ports');
-
-				$nodes->addItem(
-					(new CDiv([
-						(new CSpan())->addClass('mnz-docker-dot')
-							->addClass($kind === 'up' ? 'mnz-docker-status-running' : 'mnz-docker-status-stopped'),
-						(new CDiv([
-							(new CSpan($container))->addClass('mnz-docker-topo-name'),
-							(new CDiv($network_details))->addClass('mnz-docker-topo-details')
-						]))->addClass('mnz-docker-topo-text'),
-						$extra_nets
-							? (new CSpan('⇄'))
-								->addClass('mnz-docker-topo-multi')
-								->setTitle(_('Also in').': '.implode(', ', $extra_nets))
-							: null
-					]))
-						->addClass('mnz-docker-topo-node')
-						->addClass($kind === 'restarting' ? 'mnz-docker-topo-node-bad' : null)
-						->setAttribute('data-mnz-container', $container)
-						->setAttribute('role', 'button')
-						->setAttribute('tabindex', '0')
-				);
-			}
-
-			$zones->addItem(
-				(new CDiv([
-					(new CDiv([
-						(new CSpan($net_name))->addClass('mnz-docker-topo-zone-name'),
-						(new CSpan((string) count($members)))->addClass('mnz-docker-graphgroup-count')
-					]))->addClass('mnz-docker-topo-zone-head'),
-					$nodes
-				]))->addClass('mnz-docker-topo-zone')
-			);
+			$zones->addItem(self::makeNetworkZone(
+				$net_name,
+				$members,
+				$container_state,
+				$memberships,
+				$container_ports,
+				$ports_available
+			));
 		}
 
 		return $this->wrapPanel(_('Networks'), new CDiv([$legend, $zones]));
@@ -1179,7 +1180,7 @@ class CControllerDockerTab extends CController {
 		return $this->wrapPanel(_('Graphs'), $panel);
 	}
 
-	private function makeInventoryPanel(string $hostid): CDiv {
+	private function makeInventoryTable(string $hostid): CTableInfo {
 		$hosts = API::Host()->get([
 			'output' => ['hostid'],
 			'selectInventory' => true,
@@ -1199,7 +1200,7 @@ class CControllerDockerTab extends CController {
 			$table->addRow([$titles[$field] ?? $field, $value]);
 		}
 
-		return $this->wrapPanel(_('Inventory'), $table);
+		return $table;
 	}
 
 	private function wrapPanel(string $title, CTag $body): CDiv {

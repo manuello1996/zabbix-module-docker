@@ -100,4 +100,27 @@ class DockerFormatter {
 	public static function noData(): string {
 		return '-';
 	}
+
+	public static function containerPorts(array $ports): array {
+		$result = [];
+
+		foreach ($ports as $port) {
+			if (!is_array($port) || !array_key_exists('PrivatePort', $port)) {
+				continue;
+			}
+
+			$private = (string) $port['PrivatePort'].'/'.strtolower((string) ($port['Type'] ?? 'tcp'));
+			$public = (int) ($port['PublicPort'] ?? 0);
+
+			if ($public > 0) {
+				$public_ip = trim((string) ($port['IP'] ?? ''));
+				$result[] = ($public_ip !== '' ? $public_ip.':' : '').(string) $public.' -> '.$private;
+			}
+			else {
+				$result[] = $private;
+			}
+		}
+
+		return array_values(array_unique($result));
+	}
 }

@@ -3,17 +3,18 @@
 namespace Modules\MonzphereDocker\Actions;
 
 use API;
-use CLink;
 use CController;
 use CControllerResponseData;
 use CDiv;
 use CRoleHelper;
 use CSettingsHelper;
 use CSpan;
+use CTableInfo;
 use CTag;
 use CUrl;
 use CWebUser;
 use Manager;
+use Modules\MonzphereDocker\Includes\DockerFormatter;
 
 class CControllerDockerContainer extends CController {
 	private const FIELDS = [
@@ -23,6 +24,7 @@ class CControllerDockerContainer extends CController {
 		'docker.container_info.restart_count' => 'restart_count',
 		'docker.container_info.state.exitcode' => 'exitcode',
 		'docker.container_info.state.health' => 'health',
+		'docker.container_info.state.status' => 'status',
 		'docker.container_stats.pids_stats.current' => 'pids',
 		'docker.container_stats.cpu_usage.throttled_periods' => 'throttled_periods',
 		'docker.container_stats.cpu_usage.throttled_time' => 'throttled_time',
@@ -127,13 +129,17 @@ class CControllerDockerContainer extends CController {
 			return;
 		}
 
-		$content = (new CDiv())->addClass('mnz-docker-modal-content');
-		$content->addItem($this->makeIdentityStrip($by_prefix));
-		$content->addItem($this->makeNetworkSection($by_prefix));
-
-		foreach ($this->makeChartCells($by_prefix) as $cell) {
-			$content->addItem($cell);
-		}
+		$ports_dataset = $this->storedContainerDataset($hostid, 'docker.containers.ports');
+		$mounts_dataset = $this->storedContainerDataset($hostid, 'docker.containers.mounts');
+		$charts = $this->makeChartCells($by_prefix);
+		$content = (new CDiv([
+			$this->makeIdentityStrip($by_prefix),
+			$this->makeNetworkSection($by_prefix, $name, $ports_dataset),
+			$charts['network'],
+			$charts['cpu'],
+			$charts['memory'],
+			$this->makeMountsSection($name, $mounts_dataset)
+		]))->addClass('mnz-docker-modal-content');
 
 		$description = trim((string) ($this->rawValue($by_prefix, 'docker.container.description') ?? ''));
 
@@ -201,10 +207,53 @@ class CControllerDockerContainer extends CController {
 		]))->addClass('mnz-docker-idbar');
 	}
 
-	private function makeNetworkSection(array $by_prefix): CDiv {
+	private function storedContainerDataset(string $hostid, string $key): ?array {
+		$items = API::Item()->get([
+			'output' => ['itemid', 'value_type'],
+			'hostids' => $hostid,
+			'filter' => ['key_' => $key],
+			'monitored' => true,
+			'preservekeys' => true
+		]);
+
+		if (!$items) {
+			return null;
+		}
+
+		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
+			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
+		));
+		$itemid = array_key_first($items);
+
+		if (!array_key_exists($itemid, $last_values)) {
+			return null;
+		}
+
+		$value = json_decode($last_values[$itemid][0]['value'], true);
+
+		return is_array($value) ? $value : null;
+	}
+
+	private function findContainerDatasetEntry(?array $dataset, string $name): ?array {
+		foreach ($dataset ?? [] as $container) {
+			if (!is_array($container)) {
+				continue;
+			}
+
+			foreach ((array) ($container['Names'] ?? []) as $container_name) {
+				if (ltrim((string) $container_name, '/') === $name) {
+					return $container;
+				}
+			}
+		}
+
+		return null;
+	}
+
+	private function makeNetworkSection(array $by_prefix, string $name, ?array $ports_dataset): CDiv {
 		$raw = $this->rawValue($by_prefix, 'docker.container_info.networks');
 		$networks = $raw !== null ? json_decode($raw, true) : null;
-		$body = (new CDiv())->addClass('mnz-docker-modal-network-grid');
+		$body = (new CDiv())->addClass('mnz-docker-topo')->addClass('mnz-docker-modal-topo');
 
 		if (!is_array($networks) || !$networks) {
 			$body->addItem(
@@ -214,61 +263,35 @@ class CControllerDockerContainer extends CController {
 		}
 		else {
 			ksort($networks);
+			$port_entry = $this->findContainerDatasetEntry($ports_dataset, $name);
+			$ports = DockerFormatter::containerPorts((array) ($port_entry['Ports'] ?? []));
+			$status = $this->rawValue($by_prefix, 'docker.container_info.state.status');
+			$kind = $status === 'running' ? 'up' : ($status === 'restarting' ? 'restarting' : 'off');
+			$memberships = [$name => array_keys($networks)];
 
 			foreach ($networks as $network_name => $network) {
 				if (!is_array($network)) {
 					continue;
 				}
 
-				$facts = [];
-				$ip = (string) ($network['IPAddress'] ?? '');
-
-				$facts[] = $this->makeNetworkFact(_('IP address'), $ip !== '' ? $ip : '-');
-
-				foreach ([
-					[_('Network ID'), $network['NetworkID'] ?? '']
-				] as [$label, $value]) {
-					if ((string) $value !== '') {
-						$facts[] = $this->makeNetworkFact($label, (string) $value);
-					}
-				}
-
 				$dns_names = array_values(array_filter(
 					array_map('strval', (array) ($network['DNSNames'] ?? [])),
 					'strlen'
 				));
-
-				if ($dns_names) {
-					$dns_nodes = [];
-
-					foreach ($dns_names as $dns_name) {
-						$dns_nodes[] = $this->makeDnsName($dns_name);
-					}
-
-					$facts[] = $this->makeNetworkFact(_('DNS names'),
-						(new CDiv($dns_nodes))->addClass('mnz-docker-modal-network-list')
-					);
-				}
-
-				foreach ([
-					[_('Links'), $network['Links'] ?? null]
-				] as [$label, $value]) {
-					if ($value !== null && $value !== [] && $value !== '') {
-						$facts[] = $this->makeNetworkFact($label,
-							is_array($value)
-								? (string) json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
-								: (string) $value
-						);
-					}
-				}
-
-				$body->addItem(
-					(new CDiv([
-						(new CTag('h6', true, (string) $network_name))
-							->addClass('mnz-docker-modal-network-name'),
-						new CDiv($facts)
-					]))->addClass('mnz-docker-modal-network-card')
-				);
+				$body->addItem(CControllerDockerTab::makeNetworkZone(
+					(string) $network_name,
+					[
+						$name => [
+							'ip' => (string) ($network['IPAddress'] ?? ''),
+							'dns_names' => $dns_names
+						]
+					],
+					[$name => $kind],
+					$memberships,
+					[$name => $ports],
+					$ports_dataset !== null,
+					false
+				));
 			}
 		}
 
@@ -277,29 +300,63 @@ class CControllerDockerContainer extends CController {
 			$body
 		]))
 			->addClass('mnz-docker-cell')
-			->addClass('mnz-docker-cell-wide')
 			->addClass('mnz-docker-modal-network-section');
 	}
 
-	private function makeNetworkFact(string $label, $value): CDiv {
+	private function makeMountsSection(string $name, ?array $mounts_dataset): CDiv {
+		$entry = $this->findContainerDatasetEntry($mounts_dataset, $name);
+		$table = (new CTableInfo())
+			->setHeader([
+				_('Type'),
+				_('Name'),
+				_('Source'),
+				_('Destination'),
+				_('Driver'),
+				_('Mode'),
+				_('Access'),
+				_('Propagation')
+			])
+			->setNoDataMessage($mounts_dataset === null
+				? _('No mount data collected yet.')
+				: _('No mounts configured for this container.')
+			);
+
+		foreach ((array) ($entry['Mounts'] ?? []) as $mount) {
+			if (!is_array($mount)) {
+				continue;
+			}
+
+			$read_write = (bool) ($mount['RW'] ?? false);
+
+			$table->addRow([
+				(string) ($mount['Type'] ?? '') !== '' ? (string) $mount['Type'] : '-',
+				(string) ($mount['Name'] ?? '') !== '' ? (string) $mount['Name'] : '-',
+				(new CSpan((string) ($mount['Source'] ?? '') !== '' ? (string) $mount['Source'] : '-'))
+					->addClass('mnz-docker-image-id')
+					->addClass('mnz-docker-mount-path')
+					->setTitle((string) ($mount['Source'] ?? '')),
+				(new CSpan((string) ($mount['Destination'] ?? '') !== ''
+					? (string) $mount['Destination']
+					: '-'
+				))
+					->addClass('mnz-docker-image-id')
+					->addClass('mnz-docker-mount-path')
+					->setTitle((string) ($mount['Destination'] ?? '')),
+				(string) ($mount['Driver'] ?? '') !== '' ? (string) $mount['Driver'] : '-',
+				(string) ($mount['Mode'] ?? '') !== '' ? (string) $mount['Mode'] : '-',
+				(new CSpan($read_write ? _('Read-write') : _('Read-only')))
+					->addClass($read_write ? 'mnz-docker-status-running' : 'mnz-docker-muted'),
+				(string) ($mount['Propagation'] ?? '') !== '' ? (string) $mount['Propagation'] : '-'
+			]);
+		}
+
 		return (new CDiv([
-			(new CSpan($label))->addClass('mnz-docker-modal-network-label'),
-			(new CDiv($value))->addClass('mnz-docker-modal-network-value')
-		]))->addClass('mnz-docker-modal-network-fact');
-	}
-
-	private function makeDnsName(string $dns_name) {
-		$is_ch_fqdn = preg_match(
-			'/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+ch$/i',
-			$dns_name
-		) == 1;
-
-		return ($is_ch_fqdn
-			? (new CLink($dns_name, 'https://'.$dns_name))
-				->setTarget('_blank')
-				->setAttribute('rel', 'noopener noreferrer')
-			: new CSpan($dns_name)
-		)->addClass('mnz-docker-modal-network-list-item');
+			(new CTag('h5', true, _('Mounts')))->addClass('mnz-docker-cell-title'),
+			$table
+		]))
+			->addClass('mnz-docker-cell')
+			->addClass('mnz-docker-cell-wide')
+			->addClass('mnz-docker-modal-mounts');
 	}
 
 	private function makeChartCells(array $by_prefix): array {
@@ -311,7 +368,7 @@ class CControllerDockerContainer extends CController {
 		$itemid = static fn (string $prefix): ?string => $by_prefix[$prefix]['itemid'] ?? null;
 
 		$charts = [
-			[_('CPU usage'), [
+			['cpu', _('CPU usage'), [
 				$itemid('docker.container_stats.cpu_pct_usage')
 			], [
 				(new CSpan(_('Throttled').': '))->addClass('mnz-docker-stat-label'),
@@ -319,8 +376,8 @@ class CControllerDockerContainer extends CController {
 				' / ',
 				(new CSpan($this->formattedValue($by_prefix, 'docker.container_stats.cpu_usage.throttled_time')))
 					->addClass('mnz-docker-stat-value')
-			], 0, 200, true],
-			[_('Memory usage'), [
+			], 0, 220],
+			['memory', _('Memory usage'), [
 				$itemid('docker.container_stats.memory.usage_total')
 			], [
 				(new CSpan())->addClass('mnz-docker-series-dot')->addClass('mnz-docker-series-dot-1'),
@@ -331,8 +388,8 @@ class CControllerDockerContainer extends CController {
 				(new CSpan(_('Max').' '))->addClass('mnz-docker-stat-label'),
 				(new CSpan($this->formattedValue($by_prefix, 'docker.container_stats.memory.max_usage')))
 					->addClass('mnz-docker-stat-value')
-			], 0, 220, false],
-			[_('Network traffic'), [
+			], 0, 220],
+			['network', _('Network traffic'), [
 				$itemid('docker.networks.rx_bytes'),
 				$itemid('docker.networks.tx_bytes')
 			], [
@@ -351,12 +408,12 @@ class CControllerDockerContainer extends CController {
 				$this->countValue($by_prefix, 'docker.networks.rx_dropped'),
 				'/',
 				$this->countValue($by_prefix, 'docker.networks.tx_dropped')
-			], 0, 220, false]
+			], 0, 220]
 		];
 
 		$result = [];
 
-		foreach ($charts as [$title, $itemids, $stats, $legend, $height, $wide]) {
+		foreach ($charts as [$key, $title, $itemids, $stats, $legend, $height]) {
 			$itemids = array_values(array_filter($itemids, static fn ($id) => $id !== null));
 
 			if ($itemids) {
@@ -393,11 +450,7 @@ class CControllerDockerContainer extends CController {
 				->addClass('mnz-docker-cell')
 				->addClass('mnz-docker-cell-chart');
 
-			if ($wide) {
-				$cell->addClass('mnz-docker-cell-wide');
-			}
-
-			$result[] = $cell;
+			$result[$key] = $cell;
 		}
 
 		return $result;

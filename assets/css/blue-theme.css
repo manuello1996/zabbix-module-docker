@@ -560,6 +560,14 @@
 	border-color: var(--mnz-docker-accent);
 }
 
+.mnz-docker-topo-node-static {
+	cursor: default;
+}
+
+.mnz-docker-topo-node-static:hover {
+	border-color: var(--mnz-docker-card-border);
+}
+
 .mnz-docker-topo-node:focus-visible {
 	outline: 2px solid var(--mnz-docker-accent);
 	outline-offset: 1px;
@@ -941,6 +949,13 @@
 	color: var(--mnz-docker-text-muted);
 }
 
+.mnz-docker-node-inventory-title {
+	margin: 18px 0 8px;
+	color: var(--mnz-docker-text);
+	font-size: 13px;
+	font-weight: 600;
+}
+
 .mnz-docker-image-name {
 	font-size: 12.5px;
 	color: var(--mnz-docker-text);
@@ -1171,66 +1186,22 @@
 	gap: 10px;
 }
 
-.mnz-docker-modal-network-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+.mnz-docker-modal-topo {
+	grid-template-columns: minmax(0, 1fr);
 	gap: 10px;
 }
 
-.mnz-docker-modal-network-card {
-	min-width: 0;
-	padding: 9px 10px;
-	border: 1px solid var(--mnz-docker-card-border);
-	border-radius: 7px;
-	background-color: var(--mnz-docker-surface-muted);
+.mnz-docker-modal-topo .mnz-docker-topo-zone {
+	padding: 10px 12px;
 }
 
-.mnz-docker-modal-network-name {
-	margin: 0 0 7px;
-	font-size: 12.5px;
-	font-weight: bold;
-	color: var(--mnz-docker-text);
-	overflow-wrap: anywhere;
+.mnz-docker-modal-topo .mnz-docker-topo-nodes {
+	grid-template-columns: minmax(0, 1fr);
 }
 
-.mnz-docker-modal-network-fact {
-	display: grid;
-	grid-template-columns: minmax(90px, max-content) minmax(0, 1fr);
-	gap: 4px 10px;
-	padding: 3px 0;
-	font-size: 11.5px;
-}
-
-.mnz-docker-modal-network-label {
-	color: var(--mnz-docker-text-muted);
-}
-
-.mnz-docker-modal-network-value {
-	min-width: 0;
-	color: var(--mnz-docker-text);
-	overflow-wrap: anywhere;
-}
-
-.mnz-docker-modal-network-list {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 2px;
-}
-
-.mnz-docker-modal-network-list-item {
-	display: block;
-	max-width: 100%;
-	overflow-wrap: anywhere;
-}
-
-a.mnz-docker-modal-network-list-item {
-	color: var(--mnz-docker-accent);
-	text-decoration: none;
-}
-
-a.mnz-docker-modal-network-list-item:hover {
-	text-decoration: underline;
+.mnz-docker-modal-mounts {
+	gap: 10px;
+	overflow-x: auto;
 }
 
 .mnz-docker-idbar {

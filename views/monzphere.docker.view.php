@@ -329,8 +329,7 @@ foreach ([
 	['volumes', _('Volumes'), null],
 	['mounts', _('Mounts'), null],
 	['networks', _('Networks'), null],
-	['node', _('Node info'), null],
-	['inventory', _('Inventory'), null]
+	['node', _('Node info'), null]
 ] as [$key, $label, $badge]) {
 	$tab_items[] = (new CSpan([$label, $badge]))
 		->addClass('mnz-docker-tab')

@@ -41,7 +41,7 @@ A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages t
   - Container detail modal with ad-hoc CPU / memory / network charts
   - Native time selector (presets + calendar) shared with the Graphs tab
   - Host tabs rendered as module panels: Containers, Problems (with native event menus), Graphs, Images, Volumes,
-    Mounts, Networks, Node info, Inventory
+    Mounts, Networks, Node info (including host inventory)
   - CSRF-protected auto-refresh with freshness indicator
 - **Theme aware** — ships with `blue-theme.css` and `dark-theme.css`, follows the active Zabbix theme
 - **Accessible** — ARIA tab semantics, keyboard navigation, visible focus, reduced-motion support
@@ -114,7 +114,7 @@ zabbix-agent2:
 
 ## Optional: automatic host inventory
 
-The module's Inventory tab reads the standard Zabbix host inventory. To fill it
+The module displays the standard Zabbix host inventory beneath the Node info table. To fill it
 automatically from Docker engine facts, set the hosts' inventory mode to
 **Automatic** and add `inventory_link` on the template items:
 
