@@ -22,6 +22,14 @@
 			"class": "CControllerDockerRefresh",
 			"layout": "layout.json"
 		},
+		"monzphere.docker.problems": {
+			"class": "CControllerDockerProblems",
+			"layout": "layout.json"
+		},
+		"monzphere.docker.sparkline": {
+			"class": "CControllerDockerSparkline",
+			"layout": "layout.json"
+		},
 		"monzphere.docker.tab": {
 			"class": "CControllerDockerTab",
 			"layout": "layout.json"

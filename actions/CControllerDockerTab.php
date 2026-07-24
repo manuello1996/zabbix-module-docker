@@ -15,7 +15,6 @@ use CRoleHelper;
 use CSettingsHelper;
 use CUrl;
 use CSeverityHelper;
-use Manager;
 use CSpan;
 use CTableInfo;
 use CTag;
@@ -434,61 +433,51 @@ class CControllerDockerTab extends CController {
 
 	private function textItemValue(string $hostid, string $key): ?string {
 		$items = API::Item()->get([
-			'output' => ['itemid', 'value_type'],
+			'output' => ['lastvalue', 'lastclock'],
 			'hostids' => $hostid,
 			'filter' => ['key_' => $key],
 			'monitored' => true,
-			'preservekeys' => true
+			'limit' => 1
 		]);
 
-		if (!$items) {
+		if (!$items || !DockerCollector::hasRecentValue($items[0])) {
 			return null;
 		}
 
-		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
-			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
-		));
-
-		$itemid = array_key_first($items);
-
-		return array_key_exists($itemid, $last_values) ? $last_values[$itemid][0]['value'] : null;
+		return $items[0]['lastvalue'];
 	}
 
 	private function getContainerDataset(string $hostid, string $key): array {
 		$items = API::Item()->get([
-			'output' => ['itemid', 'key_', 'value_type'],
+			'output' => ['lastvalue', 'lastclock'],
 			'hostids' => $hostid,
 			'filter' => ['key_' => $key],
 			'monitored' => true,
-			'preservekeys' => true
+			'limit' => 1
 		]);
 
 		if (!$items) {
 			return ['status' => 'missing', 'containers' => [], 'lastclock' => 0];
 		}
 
-		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
-			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
-		));
-		$itemid = array_key_first($items);
+		$item = $items[0];
 
-		if (!array_key_exists($itemid, $last_values)) {
+		if (!DockerCollector::hasRecentValue($item)) {
 			return ['status' => 'missing', 'containers' => [], 'lastclock' => 0];
 		}
 
-		$last_value = $last_values[$itemid][0];
-		$containers = json_decode($last_value['value'], true);
+		$containers = json_decode($item['lastvalue'], true);
 
 		return is_array($containers)
 			? [
 				'status' => 'ok',
 				'containers' => $containers,
-				'lastclock' => (int) ($last_value['clock'] ?? 0)
+				'lastclock' => (int) $item['lastclock']
 			]
 			: [
 				'status' => 'invalid',
 				'containers' => [],
-				'lastclock' => (int) ($last_value['clock'] ?? 0)
+				'lastclock' => (int) $item['lastclock']
 			];
 	}
 
@@ -520,25 +509,21 @@ class CControllerDockerTab extends CController {
 
 	private function getContainerStates(string $hostid): array {
 		$items = API::Item()->get([
-			'output' => ['itemid', 'key_', 'value_type'],
+			'output' => ['key_', 'lastvalue', 'lastclock'],
 			'hostids' => $hostid,
 			'search' => ['key_' => 'docker.container_info.state.status['],
 			'startSearch' => true,
-			'monitored' => true,
-			'preservekeys' => true
+			'monitored' => true
 		]);
 
 		if (!$items) {
 			return [];
 		}
 
-		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
-			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
-		));
 		$states = [];
 
-		foreach ($items as $itemid => $item) {
-			if (!array_key_exists($itemid, $last_values)
+		foreach ($items as $item) {
+			if (!DockerCollector::hasRecentValue($item)
 					|| preg_match(
 						'/^docker\.container_info\.state\.status\["?\/?([^"\]]+)"?\]$/',
 						$item['key_'],
@@ -547,7 +532,7 @@ class CControllerDockerTab extends CController {
 				continue;
 			}
 
-			switch ($last_values[$itemid][0]['value']) {
+			switch ($item['lastvalue']) {
 				case 'running':
 					$states[$matches[1]] = 'up';
 					break;
@@ -900,12 +885,11 @@ class CControllerDockerTab extends CController {
 
 	private function makeNetworksPanel(string $hostid): CDiv {
 		$items = API::Item()->get([
-			'output' => ['itemid', 'key_', 'value_type'],
+			'output' => ['key_', 'lastvalue', 'lastclock'],
 			'hostids' => $hostid,
 			'search' => ['key_' => 'docker.container_info.networks['],
 			'startSearch' => true,
-			'monitored' => true,
-			'preservekeys' => true
+			'monitored' => true
 		]);
 
 		if (!$items) {
@@ -915,10 +899,6 @@ class CControllerDockerTab extends CController {
 				)
 			);
 		}
-
-		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
-			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
-		));
 
 		$container_state = $this->getContainerStates($hostid);
 		$container_ports = [];
@@ -946,14 +926,14 @@ class CControllerDockerTab extends CController {
 		$networks = [];
 		$memberships = [];
 
-		foreach ($items as $itemid => $item) {
+		foreach ($items as $item) {
 			if (preg_match('/^docker\.container_info\.networks\["?\/?([^"\]]+)"?\]$/', $item['key_'], $matches) != 1
-					|| !array_key_exists($itemid, $last_values)) {
+					|| !DockerCollector::hasRecentValue($item)) {
 				continue;
 			}
 
 			$name = $matches[1];
-			$nets = json_decode($last_values[$itemid][0]['value'], true);
+			$nets = json_decode($item['lastvalue'], true);
 
 			if (!is_array($nets)) {
 				continue;

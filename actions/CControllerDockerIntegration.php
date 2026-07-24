@@ -9,7 +9,7 @@ use CControllerResponseFatal;
 use CRoleHelper;
 use CSettingsHelper;
 use CWebUser;
-use Manager;
+use Modules\MonzphereDocker\Includes\DockerCollector;
 
 /**
  * Read-only bridge used by the module's global UI integration.
@@ -125,20 +125,18 @@ class CControllerDockerIntegration extends CController {
 		}
 
 		$items = API::Item()->get([
-			'output' => ['itemid', 'hostid', 'key_', 'value_type'],
+			'output' => ['hostid', 'key_', 'lastvalue', 'lastclock'],
 			'hostids' => array_keys($hosts),
 			'search' => ['key_' => self::CONTAINER_KEY_PREFIXES],
 			'searchByAny' => true,
 			'startSearch' => true,
 			'monitored' => true,
-			'webitems' => false,
-			'preservekeys' => true
+			'webitems' => false
 		]);
 
-		$description_items = [];
 		$containers = [];
 
-		foreach ($items as $itemid => $item) {
+		foreach ($items as $item) {
 			[$prefix, $name] = $this->parseContainerKey($item['key_']);
 
 			if ($prefix === null) {
@@ -157,26 +155,13 @@ class CControllerDockerIntegration extends CController {
 			}
 
 			if ($prefix === 'docker.container.description') {
-				$description_items[$itemid] = $item;
-				$containers[$key]['description_itemid'] = $itemid;
+				$containers[$key]['note'] = DockerCollector::hasRecentValue($item)
+					? (string) $item['lastvalue']
+					: '';
 			}
 		}
 
-		$last_values = $description_items
-			? Manager::History()->getLastValues($description_items, 1, timeUnitToSeconds(
-				CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
-			))
-			: [];
-
 		foreach ($containers as $key => &$container) {
-			$itemid = $container['description_itemid'] ?? null;
-
-			if ($itemid !== null && array_key_exists($itemid, $last_values)) {
-				$container['note'] = (string) $last_values[$itemid][0]['value'];
-			}
-
-			unset($container['description_itemid']);
-
 			if (stripos($container['name'], $search) === false
 					&& stripos($container['note'], $search) === false) {
 				unset($containers[$key]);

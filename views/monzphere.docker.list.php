@@ -111,16 +111,6 @@ $table = (new CTableInfo())
 
 foreach ($data['nodes'] as $node) {
 	$metrics = $node['metrics'];
-	$problems = $node['problems'] ?? ['by_severity' => []];
-
-	$problem_badges = [];
-
-	foreach ($problems['by_severity'] as $severity => $count) {
-		$problem_badges[] = (new CSpan($count))
-			->addClass(ZBX_STYLE_PROBLEM_ICON_LIST_ITEM)
-			->addClass(CSeverityHelper::getStatusStyle((int) $severity))
-			->setTitle(CSeverityHelper::getName((int) $severity));
-	}
 
 	$detail_url = (new CUrl('zabbix.php'))
 		->setArgument('action', 'monzphere.docker.view')
@@ -137,9 +127,13 @@ foreach ($data['nodes'] as $node) {
 
 		(new CHostAvailability())->setInterfaces($node['interfaces']),
 
-		$problem_badges
-			? (new CLink($problem_badges, $detail_url))->addClass(ZBX_STYLE_PROBLEM_ICON_LINK)
-			: (new CSpan('-'))->addClass('mnz-docker-muted'),
+		(new CLink(
+			(new CSpan('…'))->addClass('mnz-docker-muted'),
+			$detail_url
+		))
+			->addClass(ZBX_STYLE_PROBLEM_ICON_LINK)
+			->setAttribute('data-mnz-problem-hostid', $node['hostid'])
+			->setAttribute('aria-label', _('Loading problems')),
 
 		$metrics['version'] !== null ? $metrics['version'] : '-',
 

@@ -12,7 +12,7 @@ use CRoleHelper;
 use CSettingsHelper;
 use CUrl;
 use CWebUser;
-use Manager;
+use Modules\MonzphereDocker\Includes\DockerCollector;
 
 class CControllerDockerList extends CController {
 	public const PROFILE_GROUPIDS = 'web.monzphere.docker.list.filter.groupids';
@@ -128,13 +128,6 @@ class CControllerDockerList extends CController {
 
 		$nodes = $this->collectNodeMetrics($hosts);
 
-		$problems = $this->collectNodeProblems(array_keys($hosts));
-
-		foreach ($nodes as $hostid => &$node) {
-			$node['problems'] = $problems[$hostid] ?? ['by_severity' => []];
-		}
-		unset($node);
-
 		$totals = [
 			'nodes' => count($nodes),
 			'total' => 0,
@@ -178,18 +171,11 @@ class CControllerDockerList extends CController {
 		}
 
 		$items = API::Item()->get([
-			'output' => ['itemid', 'hostid', 'key_', 'value_type'],
+			'output' => ['hostid', 'key_', 'lastvalue', 'lastclock'],
 			'hostids' => array_keys($hosts),
 			'filter' => ['key_' => array_keys(self::NODE_KEYS)],
-			'monitored' => true,
-			'preservekeys' => true
+			'monitored' => true
 		]);
-
-		$last_values = $items
-			? Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
-				CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
-			))
-			: [];
 
 		$empty_metrics = array_fill_keys(array_values(self::NODE_KEYS), null);
 		$nodes = [];
@@ -198,71 +184,16 @@ class CControllerDockerList extends CController {
 			$nodes[$hostid] = $host + ['metrics' => $empty_metrics];
 		}
 
-		foreach ($items as $itemid => $item) {
-			if (!array_key_exists($itemid, $last_values)) {
+		foreach ($items as $item) {
+			if (!DockerCollector::hasRecentValue($item)) {
 				continue;
 			}
 
 			$field = self::NODE_KEYS[$item['key_']];
-			$nodes[$item['hostid']]['metrics'][$field] = $last_values[$itemid][0]['value'];
+			$nodes[$item['hostid']]['metrics'][$field] = $item['lastvalue'];
 		}
 
 		return $nodes;
 	}
 
-	private function collectNodeProblems(array $hostids): array {
-		if (!$hostids) {
-			return [];
-		}
-
-		$triggers = API::Trigger()->get([
-			'output' => [],
-			'selectHosts' => ['hostid'],
-			'hostids' => $hostids,
-			'skipDependent' => true,
-			'monitored' => true,
-			'preservekeys' => true
-		]);
-
-		if (!$triggers) {
-			return [];
-		}
-
-		$problems = API::Problem()->get([
-			'output' => ['eventid', 'objectid', 'severity'],
-			'source' => EVENT_SOURCE_TRIGGERS,
-			'object' => EVENT_OBJECT_TRIGGER,
-			'objectids' => array_keys($triggers),
-			'suppressed' => false,
-			'symptom' => false
-		]);
-
-		$wanted = array_flip($hostids);
-		$result = [];
-
-		foreach ($problems as $problem) {
-			foreach ($triggers[$problem['objectid']]['hosts'] as $host) {
-				if (!array_key_exists($host['hostid'], $wanted)) {
-					continue;
-				}
-
-				$result[$host['hostid']]['events'][$problem['eventid']] = (int) $problem['severity'];
-			}
-		}
-
-		foreach ($result as &$row) {
-			$by_severity = [];
-
-			foreach ($row['events'] as $severity) {
-				$by_severity[$severity] = ($by_severity[$severity] ?? 0) + 1;
-			}
-
-			krsort($by_severity);
-
-			$row = ['by_severity' => $by_severity];
-		}
-		unset($row);
-
-		return $result;
-	}
 }

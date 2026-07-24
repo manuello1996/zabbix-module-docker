@@ -11,72 +11,14 @@ $this->includeJsFile('monzphere.docker.view.js.php');
 
 
 
-$makeSparkline = static function (array $history, string $kind): CDiv {
-	$width = 100;
-	$height = 24;
-	$pad = 3;
-
-	$svg = (new CTag('svg', true))
-		->setAttribute('viewBox', '0 0 '.$width.' '.$height)
-		->setAttribute('preserveAspectRatio', 'none')
-		->addClass('mnz-docker-spark-svg');
-
-	if ($kind === 'down' || $kind === 'off' || count($history) < 2) {
-		$y = $height - $pad - 2;
-
-		$svg->addItem(
-			(new CTag('line', true))
-				->setAttribute('x1', 0)
-				->setAttribute('y1', $y)
-				->setAttribute('x2', $width)
-				->setAttribute('y2', $y)
-				->addClass('mnz-docker-spark-flat')
-		);
-	}
-	else {
-		if (count($history) > 60) {
-			$step = (int) ceil(count($history) / 60);
-			$history = array_values(array_filter($history,
-				static fn ($i) => $i % $step === 0, ARRAY_FILTER_USE_KEY
-			));
-		}
-
-		$values = array_map(static fn ($point) => (float) $point[1], $history);
-		$min = min($values);
-		$max = max($values);
-		$range = $max - $min;
-		$count = count($values);
-
-		$points = [];
-
-		foreach ($values as $index => $value) {
-			$x = $count > 1 ? $index / ($count - 1) * $width : 0;
-			$y = $range > 0
-				? $height - $pad - (($value - $min) / $range) * ($height - 2 * $pad)
-				: $height / 2;
-
-			$points[] = round($x, 1).','.round($y, 1);
-		}
-
-		$svg
-			->addItem(
-				(new CTag('polygon', true))
-					->setAttribute('points',
-						'0,'.($height - 1).' '.implode(' ', $points).' '.$width.','.($height - 1)
-					)
-					->addClass('mnz-docker-spark-fill')
-			)
-			->addItem(
-				(new CTag('polyline', true))
-					->setAttribute('points', implode(' ', $points))
-					->setAttribute('fill', 'none')
-					->addClass('mnz-docker-spark-line')
-			);
-	}
-
-	return (new CDiv($svg))
+$makeSparkline = static function (array $itemids, string $kind, string $mode = 'single'): CDiv {
+	return (new CDiv())
 		->addClass('mnz-docker-sparkline')
-		->addClass('mnz-docker-spark-'.$kind);
+		->addClass('mnz-docker-spark-'.$kind)
+		->setAttribute('data-mnz-spark-itemids', implode(',', $itemids))
+		->setAttribute('data-mnz-spark-kind', $kind)
+		->setAttribute('data-mnz-spark-mode', $mode)
+		->setAttribute('aria-label', _('Loading history'));
 };
 
 $html_page = (new CHtmlPage())
@@ -227,25 +169,12 @@ $html_page->addItem(
 		->setAttribute('hidden', 'hidden')
 );
 
-$cpu_series = [];
+$cpu_itemids = [];
 
 foreach ($data['containers'] as $container) {
-	if (!$container['is_running']) {
-		continue;
+	if ($container['is_running'] && $container['cpu_itemid'] !== null) {
+		$cpu_itemids[] = $container['cpu_itemid'];
 	}
-
-	foreach ($container['cpu_history'] as [$clock, $value]) {
-		$bucket = intdiv((int) $clock, 1440);
-		$cpu_series[$bucket] = ($cpu_series[$bucket] ?? 0) + (float) $value;
-	}
-}
-
-ksort($cpu_series);
-
-$cpu_history = [];
-
-foreach ($cpu_series as $bucket => $value) {
-	$cpu_history[] = [$bucket * 1440, $value];
 }
 
 $memory_pct = ($data['node']['mem_total'] !== null && (float) $data['node']['mem_total'] > 0)
@@ -271,7 +200,7 @@ $html_page->addItem(
 		$makeStatSegment('running', _('Running'), $overview['running'], '', null),
 		$makeStatSegment('stopped', _('Stopped / Err'), $overview['stopped'], '', null),
 		$makeStatSegment('cpu', _('CPU usage'), $overview['cpu_total'], '%',
-			$makeSparkline($cpu_history, 'up')
+			$makeSparkline($cpu_itemids, 'up', 'sum')
 		),
 		$makeStatSegment('memory', _('Memory (used)'), $memory_parts[0], $memory_parts[1] ?? '',
 			(new CDiv(
@@ -407,12 +336,18 @@ foreach ($data['containers'] as $container) {
 
 		(new CDiv([
 			(new CSpan($row['cpu']))->addClass('mnz-docker-metric-value')->addClass('js-cpu'),
-			$makeSparkline($container['cpu_history'], $row['status_kind'])
+			$makeSparkline(
+				$container['cpu_itemid'] !== null ? [$container['cpu_itemid']] : [],
+				$row['status_kind']
+			)
 		]))->addClass('mnz-docker-metric-cell'),
 
 		(new CDiv([
 			(new CSpan($row['memory']))->addClass('mnz-docker-metric-value')->addClass('js-mem-val'),
-			$makeSparkline($container['memory_history'], $row['status_kind'])
+			$makeSparkline(
+				$container['memory_itemid'] !== null ? [$container['memory_itemid']] : [],
+				$row['status_kind']
+			)
 		]))->addClass('mnz-docker-metric-cell'),
 
 		(new CDiv([

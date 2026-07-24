@@ -10,6 +10,9 @@ window.monzphere_docker_list = new class {
 		this._last_refresh = Date.now();
 		this._failures = 0;
 		this._status = document.getElementById('mnz-docker-list-refresh-status');
+		this._problem_request = null;
+
+		this._loadProblems();
 
 		if (!this._interval) {
 			return;
@@ -44,6 +47,69 @@ window.monzphere_docker_list = new class {
 		this._timer = setTimeout(() => this._reload(), this._interval * 1000);
 	}
 
+	_loadProblems() {
+		const targets = [...document.querySelectorAll('[data-mnz-problem-hostid]')];
+		const hostids = [...new Set(targets.map((target) => target.dataset.mnzProblemHostid))];
+
+		if (hostids.length === 0) {
+			return;
+		}
+
+		const url = new Curl('zabbix.php');
+
+		url.setArgument('action', 'monzphere.docker.problems');
+		url.setArgument('hostids', hostids);
+
+		const request = fetch(url.getUrl(), {cache: 'no-store'})
+			.then((response) => response.json())
+			.then((response) => {
+				if ('error' in response || request !== this._problem_request) {
+					throw new Error();
+				}
+
+				for (const target of targets) {
+					const badges = response.hosts?.[target.dataset.mnzProblemHostid] ?? [];
+
+					if (badges.length === 0) {
+						const empty = document.createElement('span');
+
+						empty.className = 'mnz-docker-muted';
+						empty.textContent = '-';
+						target.replaceWith(empty);
+
+						continue;
+					}
+
+					target.replaceChildren();
+					target.removeAttribute('aria-label');
+
+					for (const badge of badges) {
+						const span = document.createElement('span');
+
+						span.className = 'problem-icon-list-item ' + badge.style;
+						span.title = badge.title;
+						span.textContent = badge.count;
+						target.append(span);
+					}
+				}
+			})
+			.catch(() => {
+				if (request !== this._problem_request) {
+					return;
+				}
+
+				for (const target of targets) {
+					const empty = document.createElement('span');
+
+					empty.className = 'mnz-docker-muted';
+					empty.textContent = '-';
+					target.replaceWith(empty);
+				}
+			});
+
+		this._problem_request = request;
+	}
+
 	_reload() {
 		const url = new Curl('zabbix.php');
 
@@ -74,6 +140,7 @@ window.monzphere_docker_list = new class {
 
 				document.getElementById('mnz-docker-list-cards').replaceWith(cards);
 				document.querySelector('#mnz-docker-nodes-table tbody').replaceWith(tbody);
+				this._loadProblems();
 
 				this._failures = 0;
 				this._last_refresh = Date.now();

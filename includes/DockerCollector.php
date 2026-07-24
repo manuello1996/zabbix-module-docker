@@ -39,9 +39,19 @@ class DockerCollector {
 
 	private const SPARKLINE_POINTS = 60;
 
+	public static function hasRecentValue(array $item): bool {
+		static $minimum_clock = null;
+
+		if ($minimum_clock === null) {
+			$minimum_clock = time() - timeUnitToSeconds(CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD));
+		}
+
+		return (int) ($item['lastclock'] ?? 0) >= $minimum_clock;
+	}
+
 	public static function collect(string $hostid): array {
 		$items = API::Item()->get([
-			'output' => ['itemid', 'key_', 'value_type', 'units', 'lastvalue', 'lastclock'],
+			'output' => ['itemid', 'key_', 'lastvalue', 'lastclock'],
 			'hostids' => $hostid,
 			'search' => ['key_' => array_merge(array_keys(self::HOST_KEYS), array_keys(self::CONTAINER_KEYS))],
 			'searchByAny' => true,
@@ -55,18 +65,11 @@ class DockerCollector {
 			return ['overview' => self::emptyOverview(), 'containers' => []];
 		}
 
-		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
-			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
-		));
-
 		$overview = self::emptyOverview();
 		$containers = [];
-		$sparkline_itemids = [];
 
 		foreach ($items as $itemid => $item) {
-			$value = array_key_exists($itemid, $last_values)
-				? $last_values[$itemid][0]['value']
-				: null;
+			$value = self::hasRecentValue($item) ? $item['lastvalue'] : null;
 
 			if (array_key_exists($item['key_'], self::HOST_KEYS)) {
 				$overview[self::HOST_KEYS[$item['key_']]] = $value !== null ? (int) $value : null;
@@ -90,20 +93,10 @@ class DockerCollector {
 
 			if (in_array($field, self::SPARKLINE_FIELDS, true)) {
 				$containers[$name][$field.'_itemid'] = $itemid;
-				$sparkline_itemids[$itemid] = $item['value_type'];
 			}
 		}
 
-		$history = self::getSparklineHistory($sparkline_itemids);
-
 		foreach ($containers as &$container) {
-			foreach (self::SPARKLINE_FIELDS as $field) {
-				$itemid = $container[$field.'_itemid'];
-				$container[$field.'_history'] = ($itemid !== null && array_key_exists($itemid, $history))
-					? $history[$itemid]
-					: [];
-			}
-
 			$container['is_running'] = $container['status'] === 'running';
 			$container['uptime'] = ($container['is_running'] && $container['started'] !== null)
 				? max(0, time() - (int) $container['started'])
@@ -130,24 +123,19 @@ class DockerCollector {
 		$info = array_fill_keys(array_values(self::NODE_KEYS), null);
 
 		$items = API::Item()->get([
-			'output' => ['itemid', 'key_', 'value_type'],
+			'output' => ['key_', 'lastvalue', 'lastclock'],
 			'hostids' => $hostid,
 			'filter' => ['key_' => array_keys(self::NODE_KEYS)],
-			'monitored' => true,
-			'preservekeys' => true
+			'monitored' => true
 		]);
 
 		if (!$items) {
 			return $info;
 		}
 
-		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
-			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
-		));
-
-		foreach ($items as $itemid => $item) {
-			if (array_key_exists($itemid, $last_values)) {
-				$info[self::NODE_KEYS[$item['key_']]] = $last_values[$itemid][0]['value'];
+		foreach ($items as $item) {
+			if (self::hasRecentValue($item)) {
+				$info[self::NODE_KEYS[$item['key_']]] = $item['lastvalue'];
 			}
 		}
 
@@ -174,6 +162,63 @@ class DockerCollector {
 		krsort($by_severity);
 
 		return $by_severity;
+	}
+
+	public static function problemsByHosts(array $hostids): array {
+		if (!$hostids) {
+			return [];
+		}
+
+		$triggers = API::Trigger()->get([
+			'output' => [],
+			'selectHosts' => ['hostid'],
+			'hostids' => $hostids,
+			'skipDependent' => true,
+			'monitored' => true,
+			'preservekeys' => true
+		]);
+
+		if (!$triggers) {
+			return [];
+		}
+
+		$problems = API::Problem()->get([
+			'output' => ['eventid', 'objectid', 'severity'],
+			'source' => EVENT_SOURCE_TRIGGERS,
+			'object' => EVENT_OBJECT_TRIGGER,
+			'objectids' => array_keys($triggers),
+			'suppressed' => false,
+			'symptom' => false
+		]);
+
+		$wanted = array_flip($hostids);
+		$result = [];
+
+		foreach ($problems as $problem) {
+			foreach ($triggers[$problem['objectid']]['hosts'] as $host) {
+				if (array_key_exists($host['hostid'], $wanted)) {
+					$result[$host['hostid']]['events'][$problem['eventid']] = (int) $problem['severity'];
+				}
+			}
+		}
+
+		foreach ($result as &$row) {
+			$by_severity = [];
+
+			foreach ($row['events'] as $severity) {
+				$by_severity[$severity] = ($by_severity[$severity] ?? 0) + 1;
+			}
+
+			krsort($by_severity);
+			$row = ['by_severity' => $by_severity];
+		}
+		unset($row);
+
+		return $result;
+	}
+
+	public static function sparklineHistory(array $itemids): array {
+		return self::getSparklineHistory($itemids);
 	}
 
 	private static function parseKey(string $key): array {
@@ -234,10 +279,8 @@ class DockerCollector {
 			'restarts' => null,
 			'cpu' => null,
 			'cpu_itemid' => null,
-			'cpu_history' => [],
 			'memory' => null,
 			'memory_itemid' => null,
-			'memory_history' => [],
 			'net_in' => null,
 			'net_out' => null,
 			'started' => null,

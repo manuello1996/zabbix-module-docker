@@ -7,13 +7,12 @@ use CController;
 use CControllerResponseData;
 use CDiv;
 use CRoleHelper;
-use CSettingsHelper;
 use CSpan;
 use CTableInfo;
 use CTag;
 use CUrl;
 use CWebUser;
-use Manager;
+use Modules\MonzphereDocker\Includes\DockerCollector;
 use Modules\MonzphereDocker\Includes\DockerFormatter;
 
 class CControllerDockerContainer extends CController {
@@ -80,14 +79,20 @@ class CControllerDockerContainer extends CController {
 		$hostid = $this->getInput('hostid');
 		$name = $this->getInput('name');
 		$prefixes = array_values(array_unique(array_merge(array_keys(self::FIELDS), self::CHART_KEYS)));
+		$keys = [];
+
+		foreach ($prefixes as $prefix) {
+			foreach ([$name, '/'.$name] as $key_name) {
+				$keys[] = $prefix.'["'.$key_name.'"]';
+				$keys[] = $prefix.'['.$key_name.']';
+			}
+		}
 
 		$items = API::Item()->get([
-			'output' => ['itemid', 'name', 'key_', 'units', 'value_type'],
+			'output' => ['itemid', 'name', 'key_', 'units', 'value_type', 'lastvalue', 'lastclock'],
 			'selectValueMap' => ['mappings'],
 			'hostids' => $hostid,
-			'search' => ['key_' => $prefixes],
-			'searchByAny' => true,
-			'startSearch' => true,
+			'filter' => ['key_' => $keys],
 			'monitored' => true,
 			'preservekeys' => true
 		]);
@@ -100,9 +105,6 @@ class CControllerDockerContainer extends CController {
 			return;
 		}
 
-		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
-			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
-		));
 		$by_prefix = [];
 
 		foreach ($items as $itemid => $item) {
@@ -114,9 +116,11 @@ class CControllerDockerContainer extends CController {
 			$prefix = $matches[1];
 
 			if (!array_key_exists($prefix, $by_prefix)) {
-				$last_value = $last_values[$itemid][0] ?? null;
-				$item['lastvalue'] = $last_value['value'] ?? '';
-				$item['lastclock'] = (int) ($last_value['clock'] ?? 0);
+				if (!DockerCollector::hasRecentValue($item)) {
+					$item['lastvalue'] = '';
+					$item['lastclock'] = 0;
+				}
+
 				$by_prefix[$prefix] = $item;
 			}
 		}
@@ -209,27 +213,18 @@ class CControllerDockerContainer extends CController {
 
 	private function storedContainerDataset(string $hostid, string $key): ?array {
 		$items = API::Item()->get([
-			'output' => ['itemid', 'value_type'],
+			'output' => ['lastvalue', 'lastclock'],
 			'hostids' => $hostid,
 			'filter' => ['key_' => $key],
 			'monitored' => true,
-			'preservekeys' => true
+			'limit' => 1
 		]);
 
-		if (!$items) {
+		if (!$items || !DockerCollector::hasRecentValue($items[0])) {
 			return null;
 		}
 
-		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
-			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
-		));
-		$itemid = array_key_first($items);
-
-		if (!array_key_exists($itemid, $last_values)) {
-			return null;
-		}
-
-		$value = json_decode($last_values[$itemid][0]['value'], true);
+		$value = json_decode($items[0]['lastvalue'], true);
 
 		return is_array($value) ? $value : null;
 	}

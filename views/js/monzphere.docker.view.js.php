@@ -21,6 +21,10 @@ window.monzphere_docker = new class {
 		this._modal_keydown = null;
 		this._modal_seq = 0;
 		this._resize_debounce = null;
+		this._sparkline_observer = null;
+		this._sparkline_queue = new Set();
+		this._sparkline_batch_timer = null;
+		this._sparkline_history = new Map();
 
 		document.querySelector('header.header-title')?.remove();
 
@@ -57,6 +61,7 @@ window.monzphere_docker = new class {
 		this._initRefreshStatus();
 
 		this._applyTableState();
+		this._initSparklines();
 
 		window.addEventListener('resize', () => {
 			clearTimeout(this._resize_debounce);
@@ -69,6 +74,192 @@ window.monzphere_docker = new class {
 		});
 
 		this._scheduleRefresh();
+	}
+
+	_initSparklines() {
+		const holders = document.querySelectorAll('.mnz-docker-sparkline[data-mnz-spark-itemids]');
+
+		if (holders.length === 0) {
+			return;
+		}
+
+		if (!('IntersectionObserver' in window)) {
+			holders.forEach((holder) => this._queueSparkline(holder));
+
+			return;
+		}
+
+		this._sparkline_observer = new IntersectionObserver((entries) => {
+			for (const entry of entries) {
+				if (entry.isIntersecting && entry.target.closest('[hidden]') === null) {
+					this._queueSparkline(entry.target);
+				}
+			}
+		}, {rootMargin: '80px 0px'});
+
+		holders.forEach((holder) => this._sparkline_observer.observe(holder));
+	}
+
+	_queueSparkline(holder) {
+		if (holder.dataset.mnzSparkLoaded === '1') {
+			return;
+		}
+
+		this._sparkline_observer?.unobserve(holder);
+		holder.dataset.mnzSparkLoaded = '1';
+
+		const itemids = this._sparklineItemids(holder);
+		const kind = holder.dataset.mnzSparkKind ?? 'up';
+
+		if (itemids.length === 0 || kind === 'down' || kind === 'off') {
+			this._renderSparkline(holder, [], kind);
+
+			return;
+		}
+
+		this._sparkline_queue.add(holder);
+		clearTimeout(this._sparkline_batch_timer);
+		this._sparkline_batch_timer = setTimeout(() => this._loadSparklineBatch(), 20);
+	}
+
+	_sparklineItemids(holder) {
+		return (holder.dataset.mnzSparkItemids ?? '')
+			.split(',')
+			.filter((itemid) => /^\d+$/.test(itemid));
+	}
+
+	_loadSparklineBatch() {
+		const holders = [...this._sparkline_queue];
+
+		this._sparkline_queue.clear();
+
+		if (holders.length === 0) {
+			return;
+		}
+
+		const itemids = [...new Set(holders.flatMap((holder) => this._sparklineItemids(holder)))]
+			.filter((itemid) => !this._sparkline_history.has(itemid));
+
+		if (itemids.length === 0) {
+			this._renderSparklineHolders(holders);
+
+			return;
+		}
+
+		const url = new Curl('zabbix.php');
+
+		url.setArgument('action', 'monzphere.docker.sparkline');
+		url.setArgument('hostid', this._hostid);
+		url.setArgument('itemids', itemids);
+
+		fetch(url.getUrl(), {cache: 'no-store'})
+			.then((response) => response.json())
+			.then((response) => {
+				if ('error' in response) {
+					throw new Error();
+				}
+
+				const history = response.history ?? {};
+
+				for (const itemid of itemids) {
+					this._sparkline_history.set(itemid, history[itemid] ?? []);
+				}
+
+				this._renderSparklineHolders(holders);
+			})
+			.catch(() => {
+				for (const holder of holders) {
+					this._renderSparkline(holder, [], holder.dataset.mnzSparkKind ?? 'up');
+				}
+			});
+	}
+
+	_renderSparklineHolders(holders) {
+		for (const holder of holders) {
+			const itemids = this._sparklineItemids(holder);
+			const series = holder.dataset.mnzSparkMode === 'sum'
+				? this._sumSparklineSeries(
+					itemids.map((itemid) => this._sparkline_history.get(itemid) ?? [])
+				)
+				: this._sparkline_history.get(itemids[0]) ?? [];
+
+			this._renderSparkline(holder, series, holder.dataset.mnzSparkKind ?? 'up');
+		}
+	}
+
+	_sumSparklineSeries(series_list) {
+		const buckets = new Map();
+
+		for (const series of series_list) {
+			for (const point of series) {
+				const bucket = Math.floor(Number(point[0]) / 1440);
+
+				buckets.set(bucket, (buckets.get(bucket) ?? 0) + Number(point[1]));
+			}
+		}
+
+		return [...buckets.entries()]
+			.sort(([a], [b]) => a - b)
+			.map(([bucket, value]) => [bucket * 1440, value]);
+	}
+
+	_renderSparkline(holder, history, kind) {
+		const width = 100;
+		const height = 24;
+		const pad = 3;
+		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+
+		svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+		svg.setAttribute('preserveAspectRatio', 'none');
+		svg.classList.add('mnz-docker-spark-svg');
+
+		if (history.length < 2 || kind === 'down' || kind === 'off') {
+			const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+			const y = height - pad - 2;
+
+			line.setAttribute('x1', '0');
+			line.setAttribute('y1', String(y));
+			line.setAttribute('x2', String(width));
+			line.setAttribute('y2', String(y));
+			line.classList.add('mnz-docker-spark-flat');
+			svg.append(line);
+		}
+		else {
+			if (history.length > 60) {
+				const step = Math.ceil(history.length / 60);
+
+				history = history.filter((point, index) => index % step === 0);
+			}
+
+			const values = history.map((point) => Number(point[1]));
+			const min = Math.min(...values);
+			const max = Math.max(...values);
+			const range = max - min;
+			const points = values.map((value, index) => {
+				const x = values.length > 1 ? index / (values.length - 1) * width : 0;
+				const y = range > 0
+					? height - pad - ((value - min) / range) * (height - 2 * pad)
+					: height / 2;
+
+				return `${x.toFixed(1)},${y.toFixed(1)}`;
+			});
+
+			const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+
+			polygon.setAttribute('points', `0,${height - 1} ${points.join(' ')} ${width},${height - 1}`);
+			polygon.classList.add('mnz-docker-spark-fill');
+			svg.append(polygon);
+
+			const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+
+			polyline.setAttribute('points', points.join(' '));
+			polyline.setAttribute('fill', 'none');
+			polyline.classList.add('mnz-docker-spark-line');
+			svg.append(polyline);
+		}
+
+		holder.replaceChildren(svg);
+		holder.removeAttribute('aria-label');
 	}
 
 	_initEditShim() {
