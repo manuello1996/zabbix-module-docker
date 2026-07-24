@@ -218,9 +218,9 @@
 		head.className = 'section-head';
 		body.className = 'section-body';
 		title.textContent = 'Docker Containers';
-		table.className = document.querySelector('#search_hosts table')?.className || 'list-table';
+		table.className = 'list-table';
 
-		['Container', 'Notes', 'Host', 'IP', 'DNS', 'Host notes'].forEach((label) => {
+		['Container', 'Notes', 'Docker Host', 'Host IP', 'Host DNS', 'Host Notes'].forEach((label) => {
 			const cell = document.createElement('th');
 
 			cell.textContent = label;
@@ -230,9 +230,13 @@
 		if ((response.containers || []).length === 0) {
 			const row = document.createElement('tr');
 			const cell = document.createElement('td');
+			const message = document.createElement('div');
 
+			table.classList.add('no-data', 'no-data-without-icon');
 			cell.colSpan = 6;
-			cell.textContent = t('No data found');
+			message.className = 'no-data-message';
+			message.textContent = t('No data found');
+			cell.append(message);
 			row.append(cell);
 			tbody.append(row);
 		}
