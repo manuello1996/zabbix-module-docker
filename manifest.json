@@ -29,9 +29,14 @@
 		"monzphere.docker.container": {
 			"class": "CControllerDockerContainer",
 			"layout": "layout.json"
+		},
+		"monzphere.docker.integration": {
+			"class": "CControllerDockerIntegration",
+			"layout": "layout.json"
 		}
 	},
 	"assets": {
-		"css": ["blue-theme.css", "dark-theme.css"]
+		"css": ["blue-theme.css", "dark-theme.css"],
+		"js": ["integrations.js"]
 	}
 }

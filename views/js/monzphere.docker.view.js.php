@@ -30,6 +30,12 @@ window.monzphere_docker = new class {
 		this._initEditShim();
 		this._initTopbar();
 
+		const requested_container = new URLSearchParams(location.search).get('container');
+
+		if (this._hostid !== '' && requested_container !== null && requested_container.trim() !== '') {
+			this._openContainerModal(requested_container, null);
+		}
+
 		jQuery.subscribe('timeselector.rangeupdate', () => {
 			this._tab_cache.delete('graphs');
 

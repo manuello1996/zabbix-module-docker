@@ -45,6 +45,14 @@ A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages t
   - CSRF-protected auto-refresh with freshness indicator
 - **Theme aware** — ships with `blue-theme.css` and `dark-theme.css`, follows the active Zabbix theme
 - **Accessible** — ARIA tab semantics, keyboard navigation, visible focus, reduced-motion support
+- **Native Zabbix integration**
+  - Replaces the per-host Web endpoint with Docker in Data collection → Hosts and Monitoring → Hosts
+    when the host is linked to a template whose name contains `Docker by Zabbix agent 2`
+  - Replaces Web with Docker in both the View and Configuration sections of the Monitoring host popup
+  - Adds a `Docker Containers` section directly below Hosts in the global search results
+  - Container search links open the related Docker host page and its container detail popup
+  - Uses a separate read-only module action and global asset, so it does not override the core actions
+    also customized by the Better Search module
 
 ## Requirements
 
@@ -138,7 +146,8 @@ monzphere_docker/
 │   ├── CControllerDockerView.php       # node detail
 │   ├── CControllerDockerRefresh.php    # auto-refresh endpoint (JSON, CSRF)
 │   ├── CControllerDockerTab.php        # host tab panels (JSON)
-│   └── CControllerDockerContainer.php  # container modal (JSON)
+│   ├── CControllerDockerContainer.php  # container modal (JSON)
+│   └── CControllerDockerIntegration.php # host links + container search (JSON)
 ├── includes/
 │   ├── DockerCollector.php          # metric collection / normalization
 │   └── DockerFormatter.php          # display formatting
@@ -154,6 +163,8 @@ monzphere_docker/
     ├── css/
     │   ├── blue-theme.css
     │   └── dark-theme.css
+    ├── js/
+    │   └── integrations.js
     └── img/
         └── zabbix-partner.svg
 ```
