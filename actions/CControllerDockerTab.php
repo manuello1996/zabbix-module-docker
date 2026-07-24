@@ -254,7 +254,7 @@ class CControllerDockerTab extends CController {
 			}
 		}
 
-		$snapshot = $this->getContainersSnapshot($hostid);
+		$snapshot = $this->getContainerDataset($hostid, 'docker.containers.image_usage');
 		$usage_available = $snapshot['status'] === 'ok';
 		$usage_complete = false;
 		$unmatched_containers = 0;
@@ -362,7 +362,7 @@ class CControllerDockerTab extends CController {
 
 			$short_id = preg_replace('/^sha256:/', '', $image['id']);
 			$short_id = substr($short_id, 0, 12);
-			$usage = new CSpan('-');
+			$usage = (new CSpan(_('No data')))->addClass('mnz-docker-muted');
 
 			if ($usage_available) {
 				$running = count(array_filter(
@@ -448,33 +448,42 @@ class CControllerDockerTab extends CController {
 		return array_key_exists($itemid, $last_values) ? $last_values[$itemid][0]['value'] : null;
 	}
 
-	private function getContainersSnapshot(string $hostid): array {
+	private function getContainerDataset(string $hostid, string $key): array {
 		$items = API::Item()->get([
-			'output' => ['lastvalue', 'lastclock'],
+			'output' => ['itemid', 'key_', 'value_type'],
 			'hostids' => $hostid,
-			'filter' => ['key_' => 'docker.containers'],
-			'monitored' => true
+			'filter' => ['key_' => $key],
+			'monitored' => true,
+			'preservekeys' => true
 		]);
 
-		if (!$items || (int) $items[0]['lastclock'] === 0) {
+		if (!$items) {
 			return ['status' => 'missing', 'containers' => [], 'lastclock' => 0];
 		}
 
-		$containers = json_decode($items[0]['lastvalue'], true);
+		$last_values = Manager::History()->getLastValues($items, 1, timeUnitToSeconds(
+			CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD)
+		));
+		$itemid = array_key_first($items);
 
-		if (!is_array($containers)) {
-			return [
-				'status' => 'invalid',
-				'containers' => [],
-				'lastclock' => (int) $items[0]['lastclock']
-			];
+		if (!array_key_exists($itemid, $last_values)) {
+			return ['status' => 'missing', 'containers' => [], 'lastclock' => 0];
 		}
 
-		return [
-			'status' => 'ok',
-			'containers' => $containers,
-			'lastclock' => (int) $items[0]['lastclock']
-		];
+		$last_value = $last_values[$itemid][0];
+		$containers = json_decode($last_value['value'], true);
+
+		return is_array($containers)
+			? [
+				'status' => 'ok',
+				'containers' => $containers,
+				'lastclock' => (int) ($last_value['clock'] ?? 0)
+			]
+			: [
+				'status' => 'invalid',
+				'containers' => [],
+				'lastclock' => (int) ($last_value['clock'] ?? 0)
+			];
 	}
 
 	private function getContainerImageIds(string $hostid): array {
@@ -628,7 +637,7 @@ class CControllerDockerTab extends CController {
 	}
 
 	private function makeMountsPanel(string $hostid, int $page): CDiv {
-		$snapshot = $this->getContainersSnapshot($hostid);
+		$snapshot = $this->getContainerDataset($hostid, 'docker.containers.mounts');
 
 		if ($snapshot['status'] === 'missing') {
 			return $this->wrapPanel(_('Mounts'),
@@ -824,9 +833,10 @@ class CControllerDockerTab extends CController {
 
 		$container_state = $this->getContainerStates($hostid);
 		$container_ports = [];
-		$snapshot = $this->getContainersSnapshot($hostid);
+		$snapshot = $this->getContainerDataset($hostid, 'docker.containers.ports');
+		$ports_available = $snapshot['status'] === 'ok';
 
-		if ($snapshot['status'] === 'ok') {
+		if ($ports_available) {
 			foreach ($snapshot['containers'] as $raw_container) {
 				if (!is_array($raw_container)) {
 					continue;
@@ -840,11 +850,11 @@ class CControllerDockerTab extends CController {
 					}
 
 					$private = (string) $port['PrivatePort'].'/'.strtolower((string) ($port['Type'] ?? 'tcp'));
-					$public = array_key_exists('PublicPort', $port) ? (string) $port['PublicPort'] : '';
+					$public = (int) ($port['PublicPort'] ?? 0);
 
-					if ($public !== '') {
+					if ($public > 0) {
 						$public_ip = trim((string) ($port['IP'] ?? ''));
-						$ports[] = ($public_ip !== '' ? $public_ip.':' : '').$public.' -> '.$private;
+						$ports[] = ($public_ip !== '' ? $public_ip.':' : '').(string) $public.' -> '.$private;
 					}
 					else {
 						$ports[] = $private;
@@ -956,7 +966,8 @@ class CControllerDockerTab extends CController {
 					}
 				}
 				else {
-					$port_nodes[] = (new CSpan('-'))->addClass('mnz-docker-topo-port');
+					$port_nodes[] = (new CSpan($ports_available ? '-' : _('No data')))
+						->addClass('mnz-docker-topo-port');
 				}
 
 				$network_details[] = (new CDiv($port_nodes))->addClass('mnz-docker-topo-ports');

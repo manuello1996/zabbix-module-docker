@@ -54,13 +54,16 @@ A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages t
 | Zabbix agent 2 (with built-in Docker plugin) | 7.0+ |
 | Template | *Docker by Zabbix agent 2* (bundled copy in [`templates/`](templates/docker_by_zabbix_agent_2.yaml)) |
 
-The bundled template adds items that are not part of the stock template: `docker.volumes.raw`,
-`docker.container_info.networks["{#NAME}"]`, and `docker.container_info.image_id["{#NAME}"]`.
+The bundled template adds items that are not part of the stock template:
+`docker.containers.mounts`, `docker.containers.ports`, `docker.containers.image_usage`,
+`docker.volumes.raw`, `docker.container_info.networks["{#NAME}"]`, and
+`docker.container_info.image_id["{#NAME}"]`.
 Import [`templates/docker_by_zabbix_agent_2.yaml`](templates/docker_by_zabbix_agent_2.yaml)
-(Data collection → Templates → Import) to enable volume details, network details, and exact
-image-to-container usage matching. Image usage falls back to image-reference matching before the
-updated template is imported. The Mounts tab uses the stock `docker.containers` item and requires
-no additional template item.
+(Data collection → Templates → Import) to enable the compact stored datasets used for mounts,
+ports and image usage, plus volume and network details. Each module dataset retains one day of
+history and discards unchanged values with a one-hour heartbeat; the complete stock
+`docker.containers` master response remains unstored. Image usage falls back to image-reference
+matching until exact image IDs are available.
 | PHP | 8.2 – 8.5 |
 
 ## Installation

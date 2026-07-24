@@ -66,6 +66,107 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: f8a5ca51489a4f45b452ccb88877c591
+          name: 'Docker: Container mounts for module'
+          type: DEPENDENT
+          key: docker.containers.mounts
+          delay: '0'
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var containers = JSON.parse(value),
+                      result = [];
+
+                  for (var i = 0; i < containers.length; i++) {
+                      if (Array.isArray(containers[i].Mounts) && containers[i].Mounts.length > 0) {
+                          result.push({
+                              Id: containers[i].Id,
+                              Names: containers[i].Names,
+                              Mounts: containers[i].Mounts
+                          });
+                      }
+                  }
+
+                  return JSON.stringify(result);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: docker.containers
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 910904e7f4aa4520a20297019322f59e
+          name: 'Docker: Container ports for module'
+          type: DEPENDENT
+          key: docker.containers.ports
+          delay: '0'
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var containers = JSON.parse(value),
+                      result = [];
+
+                  for (var i = 0; i < containers.length; i++) {
+                      if (Array.isArray(containers[i].Ports) && containers[i].Ports.length > 0) {
+                          result.push({
+                              Id: containers[i].Id,
+                              Names: containers[i].Names,
+                              Ports: containers[i].Ports
+                          });
+                      }
+                  }
+
+                  return JSON.stringify(result);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: docker.containers
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 4eccc45fb1db4189b2b180d676e18bb7
+          name: 'Docker: Container image usage for module'
+          type: DEPENDENT
+          key: docker.containers.image_usage
+          delay: '0'
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var containers = JSON.parse(value),
+                      result = [];
+
+                  for (var i = 0; i < containers.length; i++) {
+                      result.push({
+                          Id: containers[i].Id,
+                          Names: containers[i].Names,
+                          Image: containers[i].Image,
+                          State: containers[i].State
+                      });
+                  }
+
+                  return JSON.stringify(result);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: docker.containers
+          tags:
+            - tag: component
+              value: raw
         - uuid: 75f55b1f18c54af6ad0b3045cb230bd3
           name: 'Containers paused'
           type: DEPENDENT
