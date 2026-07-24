@@ -941,6 +941,27 @@ zabbix_export:
                   value: images
                 - tag: container
                   value: '{#NAME}'
+            - uuid: 58c31ffe54b0417bbf562f04b75f9043
+              name: 'Container {#NAME}: Image ID'
+              type: DEPENDENT
+              key: 'docker.container_info.image_id["{#NAME}"]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.Image
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'docker.container_info["{#NAME}",full]'
+              tags:
+                - tag: component
+                  value: images
+                - tag: container
+                  value: '{#NAME}'
             - uuid: 4b8fd7be3dfd4d7bb91ccf581d78cf8b
               name: 'Container {#NAME}: Network settings'
               type: DEPENDENT

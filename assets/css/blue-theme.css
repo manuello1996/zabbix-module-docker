@@ -951,6 +951,56 @@
 	color: var(--mnz-docker-text-muted);
 }
 
+.mnz-docker-image-usage {
+	min-width: 235px;
+}
+
+.mnz-docker-image-usage-summary {
+	display: flex;
+	align-items: center;
+	gap: 5px 10px;
+	flex-wrap: wrap;
+	cursor: pointer;
+}
+
+.mnz-docker-image-usage-summary::marker {
+	color: var(--mnz-docker-text-muted);
+}
+
+.mnz-docker-image-usage-total {
+	color: var(--mnz-docker-text);
+	font-weight: 600;
+}
+
+.mnz-docker-image-usage-list {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	margin-top: 8px;
+	padding: 8px;
+	border: 1px solid var(--mnz-docker-card-border);
+	border-radius: 6px;
+	background-color: var(--mnz-docker-surface-muted);
+}
+
+.mnz-docker-image-usage-container {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 7px;
+}
+
+.mnz-docker-image-usage-container a {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mnz-docker-image-usage-state {
+	color: var(--mnz-docker-text-muted);
+	font-size: 11px;
+}
+
 .mnz-docker-mount-path {
 	display: block;
 	max-width: 320px;

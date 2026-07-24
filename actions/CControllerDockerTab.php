@@ -240,7 +240,8 @@ class CControllerDockerTab extends CController {
 					'name' => $name,
 					'created' => null,
 					'size' => null,
-					'size_formatted' => null
+					'size_formatted' => null,
+					'containers' => []
 				];
 			}
 
@@ -253,9 +254,81 @@ class CControllerDockerTab extends CController {
 			}
 		}
 
+		$snapshot = $this->getContainersSnapshot($hostid);
+		$usage_available = $snapshot['status'] === 'ok';
+		$usage_complete = false;
+		$unmatched_containers = 0;
+
+		if ($usage_available) {
+			$image_ids = [];
+			$image_names = [];
+			$container_count = 0;
+			$matched_containers = 0;
+
+			foreach ($images as $image_key => $image) {
+				$normalized_id = preg_replace('/^sha256:/', '', $image['id']);
+				$image_ids[$normalized_id] = $image_key;
+				$image_names[$image['name']] = $image_key;
+			}
+
+			$container_image_ids = $this->getContainerImageIds($hostid);
+
+			foreach ($snapshot['containers'] as $container) {
+				if (!is_array($container)) {
+					continue;
+				}
+
+				$names = array_values(array_filter(
+					array_map(
+						static fn ($name): string => ltrim((string) $name, '/'),
+						(array) ($container['Names'] ?? [])
+					),
+					'strlen'
+				));
+
+				if (!$names) {
+					continue;
+				}
+
+				$container_count++;
+				$container_name = $names[0];
+				$image_id = (string) (
+					$container['ImageID'] ?? $container_image_ids[$container_name] ?? ''
+				);
+				$normalized_id = preg_replace('/^sha256:/', '', $image_id);
+				$image_ref = (string) ($container['Image'] ?? '');
+				$image_key = $normalized_id !== '' && array_key_exists($normalized_id, $image_ids)
+					? $image_ids[$normalized_id]
+					: ($image_names[$image_ref] ?? null);
+
+				if ($image_key === null) {
+					$unmatched_containers++;
+					continue;
+				}
+
+				$matched_containers++;
+				$images[$image_key]['containers'][] = [
+					'name' => $container_name,
+					'id' => (string) ($container['Id'] ?? ''),
+					'state' => strtolower((string) ($container['State'] ?? 'unknown'))
+				];
+			}
+
+			foreach ($images as &$image) {
+				usort($image['containers'], static fn (array $a, array $b): int =>
+					($a['state'] === 'running' ? 0 : 1) <=> ($b['state'] === 'running' ? 0 : 1)
+						?: strnatcasecmp($a['name'], $b['name'])
+				);
+			}
+			unset($image);
+
+			$usage_complete = $container_count === $matched_containers;
+		}
+
 		usort($images, static fn (array $a, array $b): int => ($b['size'] ?? -1) <=> ($a['size'] ?? -1));
 
 		$node = DockerCollector::nodeInfo($hostid);
+		$used_images = count(array_filter($images, static fn (array $image): bool => (bool) $image['containers']));
 
 		$pills = [];
 
@@ -263,6 +336,13 @@ class CControllerDockerTab extends CController {
 			[_('Images'), $node['images_total'] !== null ? $node['images_total'] : count($images)],
 			[_('Total size'), $node['images_size'] !== null ? DockerFormatter::bytes($node['images_size']) : '-']
 		];
+
+		if ($usage_available) {
+			$pill_defs[] = [_('Used'), $used_images];
+			$pill_defs[] = $usage_complete
+				? [_('Unused'), count($images) - $used_images]
+				: [_('Unmatched containers'), $unmatched_containers];
+		}
 
 		foreach ($pill_defs as [$label, $value]) {
 			$pills[] = (new CDiv([
@@ -274,7 +354,7 @@ class CControllerDockerTab extends CController {
 		$paging = CPagerHelper::paginate($page, $images, ZBX_SORT_UP, $this->getTabUrl('images'));
 
 		$table = (new CTableInfo())
-			->setHeader([_('Image'), _('ID'), _('Size'), _('Created')])
+			->setHeader([_('Image'), _('ID'), _('Size'), _('Created'), _('Usage')])
 			->setNoDataMessage(_('No image data collected yet.'));
 
 		foreach ($images as $image) {
@@ -282,6 +362,50 @@ class CControllerDockerTab extends CController {
 
 			$short_id = preg_replace('/^sha256:/', '', $image['id']);
 			$short_id = substr($short_id, 0, 12);
+			$usage = new CSpan('-');
+
+			if ($usage_available) {
+				$running = count(array_filter(
+					$image['containers'],
+					static fn (array $container): bool => $container['state'] === 'running'
+				));
+				$stopped = count($image['containers']) - $running;
+
+				if ($image['containers']) {
+					$container_nodes = [];
+
+					foreach ($image['containers'] as $container) {
+						$container_nodes[] = (new CDiv([
+							(new CSpan())->addClass('mnz-docker-dot')
+								->addClass($container['state'] === 'running'
+									? 'mnz-docker-status-running'
+									: 'mnz-docker-status-stopped'
+								),
+							(new CLinkAction($container['name']))
+								->setAttribute('data-mnz-container', $container['name'])
+								->setTitle($container['id']),
+							(new CSpan(ucfirst($container['state'])))
+								->addClass('mnz-docker-image-usage-state')
+						]))->addClass('mnz-docker-image-usage-container');
+					}
+
+					$usage = (new CTag('details', true, [
+						(new CTag('summary', true, [
+							(new CSpan(count($image['containers']).' '._('containers')))
+								->addClass('mnz-docker-image-usage-total'),
+							(new CSpan($running.' '._('running')))
+								->addClass('mnz-docker-status-running'),
+							(new CSpan($stopped.' '._('stopped')))
+								->addClass($stopped > 0 ? 'mnz-docker-status-stopped' : 'mnz-docker-muted')
+						]))->addClass('mnz-docker-image-usage-summary'),
+						(new CDiv($container_nodes))->addClass('mnz-docker-image-usage-list')
+					]))->addClass('mnz-docker-image-usage');
+				}
+				else {
+					$usage = (new CSpan($usage_complete ? _('Unused') : _('No matched containers')))
+						->addClass('mnz-docker-muted');
+				}
+			}
 
 			$table->addRow([
 				(new CSpan($is_dangling ? _('<untagged>') : $image['name']))
@@ -290,7 +414,8 @@ class CControllerDockerTab extends CController {
 					->setTitle($image['name']),
 				(new CSpan($short_id))->addClass('mnz-docker-image-id')->setTitle($image['id']),
 				$image['size_formatted'] ?? '-',
-				$image['created'] !== null ? zbx_date2str(DATE_TIME_FORMAT, $image['created']) : '-'
+				$image['created'] !== null ? zbx_date2str(DATE_TIME_FORMAT, $image['created']) : '-',
+				$usage
 			]);
 		}
 
@@ -350,6 +475,32 @@ class CControllerDockerTab extends CController {
 			'containers' => $containers,
 			'lastclock' => (int) $items[0]['lastclock']
 		];
+	}
+
+	private function getContainerImageIds(string $hostid): array {
+		$items = API::Item()->get([
+			'output' => ['key_', 'lastvalue', 'lastclock'],
+			'hostids' => $hostid,
+			'search' => ['key_' => 'docker.container_info.image_id['],
+			'startSearch' => true,
+			'monitored' => true
+		]);
+		$image_ids = [];
+
+		foreach ($items as $item) {
+			if ($item['lastclock'] == 0
+					|| preg_match(
+						'/^docker\.container_info\.image_id\["?\/?([^"\]]+)"?\]$/',
+						$item['key_'],
+						$matches
+					) != 1) {
+				continue;
+			}
+
+			$image_ids[$matches[1]] = (string) $item['lastvalue'];
+		}
+
+		return $image_ids;
 	}
 
 	private function getContainerStates(string $hostid): array {
