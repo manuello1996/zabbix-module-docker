@@ -1217,6 +1217,12 @@ class CControllerDockerTab extends CController {
 		if (count($members) > 2) {
 			$zone->addClass('mnz-docker-topo-zone-wide');
 		}
+		elseif (count($members) === 1) {
+			$zone->addClass('mnz-docker-topo-zone-single');
+		}
+		else {
+			$zone->addClass('mnz-docker-topo-zone-compact');
+		}
 
 		return $zone;
 	}

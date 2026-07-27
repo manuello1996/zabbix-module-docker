@@ -475,6 +475,18 @@
 	grid-column: 1 / -1;
 }
 
+.mnz-docker-topo:not(.mnz-docker-modal-topo) > .mnz-docker-topo-zone-single {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 360px;
+}
+
+.mnz-docker-topo:not(.mnz-docker-modal-topo) > .mnz-docker-topo-zone-compact {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 700px;
+}
+
 .mnz-docker-topo-zone-head {
 	display: flex;
 	align-items: center;
@@ -505,6 +517,12 @@
 	border-radius: 8px;
 	cursor: pointer;
 	min-width: 0;
+}
+
+.mnz-docker-topo:not(.mnz-docker-modal-topo) .mnz-docker-topo-node {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 320px;
 }
 
 .mnz-docker-topo-node:hover {
