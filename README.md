@@ -41,7 +41,9 @@ A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages t
   - Container detail modal with ad-hoc CPU / memory / network charts
   - Native time selector (presets + calendar) shared with the Graphs tab
   - Host tabs rendered as module panels: Containers, Problems (with native event menus), Graphs, Images, Volumes,
-    Mounts, Networks, Node info (including host inventory)
+    Mounts, Networks, Compose projects, Node info (including host inventory)
+  - Container popup label inventory and a Compose view grouped by `com.docker.compose.project`, including all
+    `com.docker.compose.*` deployment metadata
   - CSRF-protected auto-refresh with freshness indicator
 - **Theme aware** — ships with `blue-theme.css` and `dark-theme.css`, follows the active Zabbix theme
 - **Accessible** — ARIA tab semantics, keyboard navigation, visible focus, reduced-motion support
@@ -65,7 +67,7 @@ A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages t
 
 The bundled template adds items that are not part of the stock template:
 `docker.containers.mounts`, `docker.containers.ports`, `docker.containers.image_usage`,
-`docker.volumes.raw`, `docker.container_info.networks["{#NAME}"]`, and
+`docker.containers.labels`, `docker.volumes.raw`, `docker.container_info.networks["{#NAME}"]`, and
 `docker.container_info.image_id["{#NAME}"]`.
 Import [`templates/docker_by_zabbix_agent_2.yaml`](templates/docker_by_zabbix_agent_2.yaml)
 (Data collection → Templates → Import) to enable the compact stored datasets used for mounts,
@@ -73,6 +75,12 @@ ports and image usage, plus volume and network details. Each module dataset reta
 history and discards unchanged values with a one-hour heartbeat; the complete stock
 `docker.containers` master response remains unstored. Image usage falls back to image-reference
 matching until exact image IDs are available.
+
+Container labels require the additional Agent 2 UserParameter shipped in
+[`agent2/docker-labels.conf`](agent2/docker-labels.conf). Copy it into the Agent 2 include directory,
+ensure `curl` is installed and the Agent 2 user can read `/var/run/docker.sock`, then reload or restart
+Agent 2. The raw Docker API response is not retained; the dependent `docker.containers.labels` item
+stores only container identity, image, state and labels.
 | PHP | 8.2 – 8.5 |
 
 ## Installation

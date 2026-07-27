@@ -240,6 +240,7 @@ $tab_items = [
 ];
 
 foreach ([
+	['compose', _('Compose'), null],
 	['problems', _('Problems'), $problems_badge],
 	['graphs', _('Graphs'), null],
 	['images', _('Images'), null],

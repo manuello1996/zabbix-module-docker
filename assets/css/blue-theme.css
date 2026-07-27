@@ -1026,6 +1026,116 @@
 	margin-top: 12px;
 }
 
+.mnz-docker-compose-projects {
+	margin-top: 12px;
+}
+
+.mnz-docker-compose-project .mnz-docker-graphgroup-head {
+	flex-wrap: wrap;
+}
+
+.mnz-docker-compose-project .mnz-docker-graphgroup-body {
+	overflow-x: auto;
+}
+
+.mnz-docker-compose-project-summary {
+	color: var(--mnz-docker-text-muted);
+	font-size: 11.5px;
+}
+
+.mnz-docker-compose-metadata {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 7px;
+	margin-bottom: 10px;
+}
+
+.mnz-docker-compose-meta {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+	border: 1px solid var(--mnz-docker-card-border);
+	border-radius: 6px;
+	background-color: var(--mnz-docker-surface-muted);
+	overflow: hidden;
+}
+
+.mnz-docker-compose-meta-key {
+	padding: 4px 7px;
+	color: var(--mnz-docker-text-muted);
+	font-size: 10.5px;
+}
+
+.mnz-docker-compose-meta-value {
+	max-width: 420px;
+	padding: 4px 8px;
+	border-left: 1px solid var(--mnz-docker-card-border);
+	color: var(--mnz-docker-text);
+	font-size: 11px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mnz-docker-compose-label-details {
+	min-width: 250px;
+}
+
+.mnz-docker-compose-label-summary {
+	color: var(--mnz-docker-accent);
+	font-size: 11.5px;
+	cursor: pointer;
+}
+
+.mnz-docker-compose-label-list {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	margin-top: 8px;
+	padding: 8px;
+	border: 1px solid var(--mnz-docker-card-border);
+	border-radius: 6px;
+	background-color: var(--mnz-docker-surface-muted);
+}
+
+.mnz-docker-compose-label {
+	display: grid;
+	grid-template-columns: minmax(170px, .8fr) minmax(180px, 1.2fr);
+	gap: 10px;
+	align-items: start;
+}
+
+.mnz-docker-compose-label-key,
+.mnz-docker-label-key {
+	color: var(--mnz-docker-text-muted);
+	font-size: 11px;
+	overflow-wrap: anywhere;
+}
+
+.mnz-docker-compose-label-value,
+.mnz-docker-label-value {
+	color: var(--mnz-docker-text);
+	font-size: 11px;
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+}
+
+.mnz-docker-modal-labels {
+	gap: 10px;
+	overflow-x: auto;
+}
+
+@media (max-width: 900px) {
+	.mnz-docker-compose-label {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 2px;
+	}
+
+	.mnz-docker-compose-meta-value {
+		max-width: 240px;
+	}
+}
+
 .mnz-docker-status-running {
 	color: var(--mnz-docker-running);
 }

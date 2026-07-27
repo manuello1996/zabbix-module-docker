@@ -133,16 +133,20 @@ class CControllerDockerContainer extends CController {
 			return;
 		}
 
-		$ports_dataset = $this->storedContainerDataset($hostid, 'docker.containers.ports');
-		$mounts_dataset = $this->storedContainerDataset($hostid, 'docker.containers.mounts');
+		$datasets = $this->storedContainerDatasets($hostid, [
+			'docker.containers.ports',
+			'docker.containers.mounts',
+			'docker.containers.labels'
+		]);
 		$charts = $this->makeChartCells($by_prefix);
 		$content = (new CDiv([
 			$this->makeIdentityStrip($by_prefix),
-			$this->makeNetworkSection($by_prefix, $name, $ports_dataset),
+			$this->makeNetworkSection($by_prefix, $name, $datasets['docker.containers.ports']),
 			$charts['network'],
 			$charts['cpu'],
 			$charts['memory'],
-			$this->makeMountsSection($name, $mounts_dataset)
+			$this->makeMountsSection($name, $datasets['docker.containers.mounts']),
+			$this->makeLabelsSection($name, $datasets['docker.containers.labels'])
 		]))->addClass('mnz-docker-modal-content');
 
 		$description = trim((string) ($this->rawValue($by_prefix, 'docker.container.description') ?? ''));
@@ -211,22 +215,29 @@ class CControllerDockerContainer extends CController {
 		]))->addClass('mnz-docker-idbar');
 	}
 
-	private function storedContainerDataset(string $hostid, string $key): ?array {
+	private function storedContainerDatasets(string $hostid, array $keys): array {
+		$datasets = array_fill_keys($keys, null);
 		$items = API::Item()->get([
-			'output' => ['lastvalue', 'lastclock'],
+			'output' => ['key_', 'lastvalue', 'lastclock'],
 			'hostids' => $hostid,
-			'filter' => ['key_' => $key],
+			'filter' => ['key_' => $keys],
 			'monitored' => true,
-			'limit' => 1
+			'limit' => count($keys)
 		]);
 
-		if (!$items || !DockerCollector::hasRecentValue($items[0])) {
-			return null;
+		foreach ($items as $item) {
+			if (!array_key_exists($item['key_'], $datasets) || !DockerCollector::hasRecentValue($item)) {
+				continue;
+			}
+
+			$value = json_decode($item['lastvalue'], true);
+
+			if (is_array($value)) {
+				$datasets[$item['key_']] = $value;
+			}
 		}
 
-		$value = json_decode($items[0]['lastvalue'], true);
-
-		return is_array($value) ? $value : null;
+		return $datasets;
 	}
 
 	private function findContainerDatasetEntry(?array $dataset, string $name): ?array {
@@ -352,6 +363,43 @@ class CControllerDockerContainer extends CController {
 			->addClass('mnz-docker-cell')
 			->addClass('mnz-docker-cell-wide')
 			->addClass('mnz-docker-modal-mounts');
+	}
+
+	private function makeLabelsSection(string $name, ?array $labels_dataset): CDiv {
+		$entry = $this->findContainerDatasetEntry($labels_dataset, $name);
+		$labels = is_array($entry['Labels'] ?? null) ? $entry['Labels'] : [];
+
+		uksort($labels, 'strnatcasecmp');
+
+		$table = (new CTableInfo())
+			->setHeader([_('Label'), _('Value')])
+			->setNoDataMessage($labels_dataset === null
+				? _('No label data collected yet.')
+				: _('No labels configured for this container.')
+			);
+
+		foreach ($labels as $key => $value) {
+			$value = is_scalar($value) || $value === null
+				? (string) $value
+				: json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+			$table->addRow([
+				(new CSpan((string) $key))
+					->addClass('mnz-docker-label-key')
+					->setTitle((string) $key),
+				(new CSpan($value !== '' ? $value : '-'))
+					->addClass('mnz-docker-label-value')
+					->setTitle($value)
+			]);
+		}
+
+		return (new CDiv([
+			(new CTag('h5', true, _('Labels')))->addClass('mnz-docker-cell-title'),
+			$table
+		]))
+			->addClass('mnz-docker-cell')
+			->addClass('mnz-docker-cell-wide')
+			->addClass('mnz-docker-modal-labels');
 	}
 
 	private function makeChartCells(array $by_prefix): array {

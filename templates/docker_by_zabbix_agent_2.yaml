@@ -66,6 +66,50 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: 72987db5ddfe4bcabab0b8a7b15868b5
+          name: 'Docker: Get container labels for module'
+          key: docker.containers.labels.raw
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: 'Raw Docker container list collected through the docker.containers.labels.raw UserParameter.'
+          tags:
+            - tag: component
+              value: raw
+        - uuid: df99b1a6d09f45fbabfd6edb7607e922
+          name: 'Docker: Container labels for module'
+          type: DEPENDENT
+          key: docker.containers.labels
+          delay: '0'
+          history: 1d
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var containers = JSON.parse(value),
+                      result = [];
+
+                  for (var i = 0; i < containers.length; i++) {
+                      result.push({
+                          Id: containers[i].Id || '',
+                          Names: containers[i].Names || [],
+                          Image: containers[i].Image || '',
+                          State: containers[i].State || '',
+                          Labels: containers[i].Labels || {}
+                      });
+                  }
+
+                  return JSON.stringify(result);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: docker.containers.labels.raw
+          tags:
+            - tag: component
+              value: raw
         - uuid: f8a5ca51489a4f45b452ccb88877c591
           name: 'Docker: Container mounts for module'
           type: DEPENDENT

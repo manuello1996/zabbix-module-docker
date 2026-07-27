@@ -32,7 +32,7 @@ class CControllerDockerTab extends CController {
 	protected function checkInput(): bool {
 		$fields = [
 			'hostid' =>	'required|db hosts.hostid',
-			'tab' =>	'required|in problems,graphs,node,images,volumes,mounts,networks,docker',
+			'tab' =>	'required|in problems,graphs,node,images,volumes,mounts,networks,compose,docker',
 			'page' =>	'ge 1'
 		];
 
@@ -56,6 +56,7 @@ class CControllerDockerTab extends CController {
 			'volumes' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'mounts' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'networks' => CRoleHelper::UI_MONITORING_LATEST_DATA,
+			'compose' => CRoleHelper::UI_MONITORING_LATEST_DATA,
 			'docker' => CRoleHelper::UI_MONITORING_LATEST_DATA
 		];
 
@@ -107,6 +108,10 @@ class CControllerDockerTab extends CController {
 
 			case 'networks':
 				$panel = $this->makeNetworksPanel($hostid);
+				break;
+
+			case 'compose':
+				$panel = $this->makeComposePanel($hostid, $page);
 				break;
 
 			default:
@@ -796,6 +801,235 @@ class CControllerDockerTab extends CController {
 		return $this->wrapPanel(_('Mounts'), new CDiv([
 			(new CDiv($pills))->addClass('mnz-docker-hostbar-stats')->addClass('mnz-docker-node-stats'),
 			(new CDiv($group_nodes))->addClass('mnz-docker-mount-groups'),
+			$paging
+		]));
+	}
+
+	private function makeComposePanel(string $hostid, int $page): CDiv {
+		$snapshot = $this->getContainerDataset($hostid, 'docker.containers.labels');
+
+		if ($snapshot['status'] === 'missing') {
+			return $this->wrapPanel(_('Compose'),
+				(new CTableInfo())->setNoDataMessage(
+					_('No container label data collected yet. Install the docker.containers.labels.raw UserParameter and import the bundled template.')
+				)
+			);
+		}
+
+		if ($snapshot['status'] === 'invalid') {
+			return $this->wrapPanel(_('Compose'),
+				(new CTableInfo())->setNoDataMessage(_('The collected container label data is invalid.'))
+			);
+		}
+
+		$projects = [];
+		$running = 0;
+
+		foreach ($snapshot['containers'] as $container) {
+			if (!is_array($container) || !is_array($container['Labels'] ?? null)) {
+				continue;
+			}
+
+			$labels = $container['Labels'];
+			$project = trim((string) ($labels['com.docker.compose.project'] ?? ''));
+
+			if ($project === '') {
+				continue;
+			}
+
+			$names = array_values(array_filter(array_map(
+				static fn ($name): string => ltrim((string) $name, '/'),
+				(array) ($container['Names'] ?? [])
+			), 'strlen'));
+			$name = $names
+				? $names[0]
+				: substr((string) ($container['Id'] ?? ''), 0, 12);
+			$compose_labels = [];
+
+			foreach ($labels as $key => $value) {
+				if (str_starts_with((string) $key, 'com.docker.compose.')) {
+					$compose_labels[(string) $key] = is_scalar($value) || $value === null
+						? (string) $value
+						: json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+				}
+			}
+
+			uksort($compose_labels, 'strnatcasecmp');
+
+			$state = strtolower((string) ($container['State'] ?? ''));
+			$is_running = $state === 'running';
+			$running += (int) $is_running;
+			$projects[$project]['containers'][] = [
+				'name' => $name,
+				'id' => (string) ($container['Id'] ?? ''),
+				'image' => (string) ($container['Image'] ?? ''),
+				'state' => $state,
+				'is_running' => $is_running,
+				'service' => (string) ($labels['com.docker.compose.service'] ?? ''),
+				'number' => (string) ($labels['com.docker.compose.container-number'] ?? ''),
+				'labels' => $compose_labels
+			];
+
+			foreach ($compose_labels as $key => $value) {
+				if (str_starts_with($key, 'com.docker.compose.project.')
+						|| $key === 'com.docker.compose.version') {
+					$projects[$project]['metadata'][$key][$value] = true;
+				}
+			}
+		}
+
+		uksort($projects, 'strnatcasecmp');
+		$project_count = count($projects);
+		$container_count = array_sum(array_map(
+			static fn (array $project): int => count($project['containers']),
+			$projects
+		));
+
+		$projects = array_map(static function (array $project): array {
+			usort($project['containers'], static fn (array $a, array $b): int =>
+				strnatcasecmp($a['service'], $b['service'])
+					?: strnatcasecmp($a['name'], $b['name'])
+			);
+
+			return $project;
+		}, $projects);
+
+		$projects = array_values(array_map(
+			static fn (string $name, array $project): array => $project + ['name' => $name],
+			array_keys($projects),
+			array_values($projects)
+		));
+
+		$paging = CPagerHelper::paginate($page, $projects, ZBX_SORT_UP, $this->getTabUrl('compose'));
+		$pills = [];
+
+		foreach ([
+			[_('Projects'), $project_count],
+			[_('Containers'), $container_count],
+			[_('Running'), $running],
+			[_('Stopped'), $container_count - $running]
+		] as [$label, $value]) {
+			$pills[] = (new CDiv([
+				(new CSpan($label))->addClass('mnz-docker-card-unit'),
+				(new CSpan((string) $value))->addClass('mnz-docker-card-value')
+			]))->addClass('mnz-docker-stat');
+		}
+
+		$project_nodes = [];
+		$expand_all = $project_count <= 4;
+
+		foreach ($projects as $project) {
+			$metadata = [];
+
+			foreach ($project['metadata'] ?? [] as $key => $values) {
+				$short_key = substr($key, strlen('com.docker.compose.'));
+				$value = implode(', ', array_keys($values));
+				$metadata[] = (new CDiv([
+					(new CSpan($short_key))->addClass('mnz-docker-compose-meta-key'),
+					(new CSpan($value !== '' ? $value : '-'))
+						->addClass('mnz-docker-compose-meta-value')
+						->setTitle($value)
+				]))->addClass('mnz-docker-compose-meta');
+			}
+
+			$table = (new CTableInfo())
+				->setHeader([
+					_('Container'),
+					_('Service'),
+					_('Instance'),
+					_('Image'),
+					_('State'),
+					_('Compose labels')
+				]);
+			$project_running = 0;
+			$services = [];
+
+			foreach ($project['containers'] as $container) {
+				$project_running += (int) $container['is_running'];
+
+				if ($container['service'] !== '') {
+					$services[$container['service']] = true;
+				}
+
+				$label_nodes = [];
+
+				foreach ($container['labels'] as $key => $value) {
+					$label_nodes[] = (new CDiv([
+						(new CSpan($key))->addClass('mnz-docker-compose-label-key'),
+						(new CSpan($value !== '' ? $value : '-'))
+							->addClass('mnz-docker-compose-label-value')
+							->setTitle($value)
+					]))->addClass('mnz-docker-compose-label');
+				}
+
+				$labels = (new CTag('details', true, [
+					(new CTag('summary', true,
+						count($label_nodes).' '._('labels')
+					))->addClass('mnz-docker-compose-label-summary'),
+					(new CDiv($label_nodes))->addClass('mnz-docker-compose-label-list')
+				]))->addClass('mnz-docker-compose-label-details');
+
+				$table->addRow([
+					(new CLinkAction($container['name'] !== '' ? $container['name'] : '-'))
+						->setAttribute('data-mnz-container', $container['name'])
+						->setTitle($container['id']),
+					$container['service'] !== '' ? $container['service'] : '-',
+					$container['number'] !== '' ? $container['number'] : '-',
+					(new CSpan($container['image'] !== '' ? $container['image'] : '-'))
+						->addClass('mnz-docker-image-name')
+						->setTitle($container['image']),
+					(new CSpan($container['state'] !== '' ? ucfirst($container['state']) : '-'))
+						->addClass($container['is_running']
+							? 'mnz-docker-status-running'
+							: 'mnz-docker-status-stopped'
+						),
+					$labels
+				]);
+			}
+
+			$body = (new CDiv([
+				$metadata
+					? (new CDiv($metadata))->addClass('mnz-docker-compose-metadata')
+					: null,
+				$table
+			]))->addClass('mnz-docker-graphgroup-body');
+
+			if (!$expand_all) {
+				$body->setAttribute('hidden', 'hidden');
+			}
+
+			$head = (new CTag('button', true, [
+				(new CSpan())->addClass('mnz-docker-graphgroup-caret'),
+				(new CSpan($project['name']))->addClass('mnz-docker-graphgroup-name'),
+				(new CSpan(count($services).' '._('services')))
+					->addClass('mnz-docker-compose-project-summary'),
+				(new CSpan($project_running.'/'.count($project['containers']).' '._('running')))
+					->addClass($project_running === count($project['containers'])
+						? 'mnz-docker-status-running'
+						: 'mnz-docker-status-stopped'
+					),
+				(new CSpan((string) count($project['containers'])))
+					->addClass('mnz-docker-graphgroup-count')
+			]))
+				->setAttribute('type', 'button')
+				->addClass('mnz-docker-graphgroup-head')
+				->addClass($expand_all ? 'mnz-docker-graphgroup-open' : null)
+				->setAttribute('aria-expanded', $expand_all ? 'true' : 'false');
+
+			$project_nodes[] = (new CDiv([$head, $body]))
+				->addClass('mnz-docker-graphgroup')
+				->addClass('mnz-docker-compose-project');
+		}
+
+		if (!$project_nodes) {
+			$project_nodes[] = (new CTableInfo())->setNoDataMessage(
+				_('No Docker Compose projects found in the collected container labels.')
+			);
+		}
+
+		return $this->wrapPanel(_('Compose'), new CDiv([
+			(new CDiv($pills))->addClass('mnz-docker-hostbar-stats')->addClass('mnz-docker-node-stats'),
+			(new CDiv($project_nodes))->addClass('mnz-docker-compose-projects'),
 			$paging
 		]));
 	}
