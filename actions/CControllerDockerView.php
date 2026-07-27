@@ -95,8 +95,8 @@ class CControllerDockerView extends CController {
 			])
 			: [];
 
-		if ($hostid === '' || !array_key_exists($hostid, $hosts)) {
-			$hostid = (!$was_reset && $hosts) ? (string) array_key_first($hosts) : '';
+		if ($hostid !== '' && !array_key_exists($hostid, $hosts)) {
+			$hostid = '';
 		}
 
 		$host = null;
@@ -158,8 +158,7 @@ class CControllerDockerView extends CController {
 			'containers' => [],
 			'node' => array_fill_keys(array_values(DockerCollector::NODE_KEYS), null),
 			'problems_by_severity' => [],
-			'agent_address' => '',
-			'refresh_interval' => timeUnitToSeconds(CWebUser::getRefresh())
+			'agent_address' => ''
 		];
 
 		if ($hostid !== '') {

@@ -95,7 +95,7 @@ class CControllerDockerTab extends CController {
 				break;
 
 			case 'images':
-				$panel = $this->makeImagesPanel($hostid, $page);
+				$panel = $this->makeImagesPanel($hostid);
 				break;
 
 			case 'volumes':
@@ -147,6 +147,7 @@ class CControllerDockerTab extends CController {
 			'docker.architecture' => _('Architecture'),
 			'docker.kernel_version' => _('Kernel version'),
 			'docker.server_version' => _('Docker version'),
+			'lxp.docker.compose_version' => _('Docker compose version'),
 			'docker.driver' => _('Storage driver'),
 			'docker.logging_driver' => _('Logging driver'),
 			'docker.cgroup_driver' => _('Cgroup driver'),
@@ -218,7 +219,7 @@ class CControllerDockerTab extends CController {
 		return $this->wrapPanel(_('Node info'), new CDiv($body));
 	}
 
-	private function makeImagesPanel(string $hostid, int $page): CDiv {
+	private function makeImagesPanel(string $hostid): CDiv {
 		$search_limit = (int) CSettingsHelper::get(CSettingsHelper::SEARCH_LIMIT);
 
 		$items = API::Item()->get([
@@ -361,9 +362,8 @@ class CControllerDockerTab extends CController {
 			]))->addClass('mnz-docker-stat');
 		}
 
-		$paging = CPagerHelper::paginate($page, $images, ZBX_SORT_UP, $this->getTabUrl('images'));
-
 		$table = (new CTableInfo())
+			->setId('mnz-docker-images-table')
 			->setHeader([_('Image'), _('ID'), _('Size'), _('Created'), _('Usage')])
 			->setNoDataMessage(_('No image data collected yet.'));
 
@@ -417,22 +417,76 @@ class CControllerDockerTab extends CController {
 				}
 			}
 
-			$table->addRow([
+			$created_text = $image['created'] !== null
+				? zbx_date2str(DATE_TIME_FORMAT, $image['created'])
+				: '-';
+			$created = new CSpan($created_text);
+
+			if ($image['created'] !== null && $image['created'] > 0
+					&& $image['created'] < time() - 365 * SEC_PER_DAY) {
+				$created
+					->addClass('mnz-docker-image-created-old')
+					->setTitle(_('Image is older than 365 days.'));
+			}
+
+			$usage_filter = $usage_available
+				? implode(' ', array_merge(
+					[
+						count($image['containers']).' '._('containers'),
+						$running.' '._('running'),
+						$stopped.' '._('stopped'),
+						$image['containers'] ? '' : ($usage_complete ? _('Unused') : _('No matched containers'))
+					],
+					array_column($image['containers'], 'name')
+				))
+				: _('No data');
+
+			$row = (new CRow([
 				(new CSpan($is_dangling ? _('<untagged>') : $image['name']))
 					->addClass('mnz-docker-image-name')
 					->addClass($is_dangling ? 'mnz-docker-muted' : null)
 					->setTitle($image['name']),
 				(new CSpan($short_id))->addClass('mnz-docker-image-id')->setTitle($image['id']),
 				$image['size_formatted'] ?? '-',
-				$image['created'] !== null ? zbx_date2str(DATE_TIME_FORMAT, $image['created']) : '-',
+				$created,
 				$usage
-			]);
+			]))
+				->setAttribute('data-mnz-image-name', strtolower($image['name']))
+				->setAttribute('data-mnz-image-size', strtolower($image['size_formatted'] ?? '-'))
+				->setAttribute('data-mnz-image-created', strtolower($created_text))
+				->setAttribute('data-mnz-image-usage', strtolower($usage_filter));
+
+			$table->addRow($row);
+		}
+
+		$filters = [];
+
+		foreach ([
+			'name' => _('Name'),
+			'size' => _('Size'),
+			'created' => _('Created'),
+			'usage' => _('Usage')
+		] as $field => $label) {
+			$filters[] = (new CTag('label', true, [
+				(new CSpan($label))->addClass('mnz-docker-card-unit'),
+				(new CTag('input', false))
+					->setAttribute('type', 'search')
+					->setAttribute('data-mnz-image-filter', $field)
+					->setAttribute('placeholder', _('Filter').' '.$label)
+					->setAttribute('autocomplete', 'off')
+					->addClass('mnz-docker-search')
+			]))->addClass('mnz-docker-image-filter');
 		}
 
 		return $this->wrapPanel(_('Images'), new CDiv([
 			(new CDiv($pills))->addClass('mnz-docker-hostbar-stats')->addClass('mnz-docker-node-stats'),
-			$table,
-			$paging
+			(new CDiv([
+				(new CDiv($filters))->addClass('mnz-docker-image-filters'),
+				(new CSpan(count($images).' '._('images')))
+					->setId('mnz-docker-images-filter-count')
+					->addClass('mnz-docker-graphs-count')
+			]))->addClass('mnz-docker-toolbar')->addClass('mnz-docker-image-toolbar'),
+			$table
 		]));
 	}
 
@@ -919,30 +973,29 @@ class CControllerDockerTab extends CController {
 		$expand_all = $project_count <= 4;
 
 		foreach ($projects as $project) {
-			$metadata = [];
+			$metadata_table = null;
 
-			foreach ($project['metadata'] ?? [] as $key => $values) {
-				$short_key = substr($key, strlen('com.docker.compose.'));
-				$value = implode(', ', array_keys($values));
-				$metadata[] = (new CDiv([
-					(new CSpan($short_key))->addClass('mnz-docker-compose-meta-key'),
-					(new CSpan($value !== '' ? $value : '-'))
-						->addClass('mnz-docker-compose-meta-value')
-						->setTitle($value)
-				]))->addClass('mnz-docker-compose-meta');
+			if (!empty($project['metadata'])) {
+				$metadata_table = (new CTableInfo())
+					->setHeader([_('Deployment label'), _('Value')]);
+
+				foreach ($project['metadata'] as $key => $values) {
+					$value = implode(', ', array_keys($values));
+					$metadata_table->addRow([
+						(new CSpan($key))
+							->addClass('mnz-docker-label-key')
+							->setTitle($key),
+						(new CSpan($value !== '' ? $value : '-'))
+							->addClass('mnz-docker-label-value')
+							->setTitle($value)
+					]);
+				}
 			}
 
-			$table = (new CTableInfo())
-				->setHeader([
-					_('Container'),
-					_('Service'),
-					_('Instance'),
-					_('Image'),
-					_('State'),
-					_('Compose labels')
-				]);
 			$project_running = 0;
 			$services = [];
+			$container_nodes = [];
+			$expand_containers = count($project['containers']) <= 3;
 
 			foreach ($project['containers'] as $container) {
 				$project_running += (int) $container['is_running'];
@@ -951,47 +1004,79 @@ class CControllerDockerTab extends CController {
 					$services[$container['service']] = true;
 				}
 
-				$label_nodes = [];
+				$labels_table = (new CTableInfo())
+					->setHeader([_('Compose label'), _('Value')]);
 
 				foreach ($container['labels'] as $key => $value) {
-					$label_nodes[] = (new CDiv([
-						(new CSpan($key))->addClass('mnz-docker-compose-label-key'),
+					$labels_table->addRow([
+						(new CSpan($key))
+							->addClass('mnz-docker-label-key')
+							->setTitle($key),
 						(new CSpan($value !== '' ? $value : '-'))
-							->addClass('mnz-docker-compose-label-value')
+							->addClass('mnz-docker-label-value')
 							->setTitle($value)
-					]))->addClass('mnz-docker-compose-label');
+					]);
 				}
 
-				$labels = (new CTag('details', true, [
-					(new CTag('summary', true,
-						count($label_nodes).' '._('labels')
-					))->addClass('mnz-docker-compose-label-summary'),
-					(new CDiv($label_nodes))->addClass('mnz-docker-compose-label-list')
-				]))->addClass('mnz-docker-compose-label-details');
+				$details_link = null;
 
-				$table->addRow([
-					(new CLinkAction($container['name'] !== '' ? $container['name'] : '-'))
-						->setAttribute('data-mnz-container', $container['name'])
-						->setTitle($container['id']),
-					$container['service'] !== '' ? $container['service'] : '-',
-					$container['number'] !== '' ? $container['number'] : '-',
+				if ($container['name'] !== '') {
+					$details_link = (new CLinkAction(_('Open container details')))
+						->setAttribute('data-mnz-container', $container['name']);
+				}
+
+				$container_body = (new CDiv([
+					$details_link !== null
+						? (new CDiv($details_link))->addClass('mnz-docker-compose-container-actions')
+						: null,
+					$labels_table
+				]))->addClass('mnz-docker-graphgroup-body');
+
+				if (!$expand_containers) {
+					$container_body->setAttribute('hidden', 'hidden');
+				}
+
+				$container_name = (new CSpan($container['name'] !== '' ? $container['name'] : '-'))
+					->addClass('mnz-docker-graphgroup-name')
+					->setTitle($container['id']);
+
+				$service = $container['service'] !== ''
+					? $container['service'].($container['number'] !== '' ? ' #'.$container['number'] : '')
+					: '-';
+				$container_head = (new CTag('button', true, [
+					(new CSpan())->addClass('mnz-docker-graphgroup-caret'),
+					$container_name,
+					(new CSpan($service))->addClass('mnz-docker-compose-container-service'),
 					(new CSpan($container['image'] !== '' ? $container['image'] : '-'))
-						->addClass('mnz-docker-image-name')
+						->addClass('mnz-docker-compose-container-image')
 						->setTitle($container['image']),
 					(new CSpan($container['state'] !== '' ? ucfirst($container['state']) : '-'))
 						->addClass($container['is_running']
 							? 'mnz-docker-status-running'
 							: 'mnz-docker-status-stopped'
 						),
-					$labels
-				]);
+					(new CSpan((string) count($container['labels'])))
+						->addClass('mnz-docker-graphgroup-count')
+				]))
+					->setAttribute('type', 'button')
+					->addClass('mnz-docker-graphgroup-head')
+					->addClass($expand_containers ? 'mnz-docker-graphgroup-open' : null)
+					->setAttribute('aria-expanded', $expand_containers ? 'true' : 'false');
+
+				$container_nodes[] = (new CDiv([$container_head, $container_body]))
+					->addClass('mnz-docker-graphgroup')
+					->addClass('mnz-docker-compose-container');
 			}
 
 			$body = (new CDiv([
-				$metadata
-					? (new CDiv($metadata))->addClass('mnz-docker-compose-metadata')
+				$metadata_table !== null
+					? (new CDiv([
+						(new CTag('h5', true, _('Deployment labels')))
+							->addClass('mnz-docker-node-inventory-title'),
+						$metadata_table
+					]))->addClass('mnz-docker-compose-deployment')
 					: null,
-				$table
+				(new CDiv($container_nodes))->addClass('mnz-docker-compose-containers')
 			]))->addClass('mnz-docker-graphgroup-body');
 
 			if (!$expand_all) {
@@ -1108,13 +1193,19 @@ class CControllerDockerTab extends CController {
 			$nodes->addItem($node);
 		}
 
-		return (new CDiv([
+		$zone = (new CDiv([
 			(new CDiv([
 				(new CSpan($network_name))->addClass('mnz-docker-topo-zone-name'),
 				(new CSpan((string) count($members)))->addClass('mnz-docker-graphgroup-count')
 			]))->addClass('mnz-docker-topo-zone-head'),
 			$nodes
 		]))->addClass('mnz-docker-topo-zone');
+
+		if (count($members) > 2) {
+			$zone->addClass('mnz-docker-topo-zone-wide');
+		}
+
+		return $zone;
 	}
 
 	private function makeNetworksPanel(string $hostid): CDiv {
@@ -1195,16 +1286,9 @@ class CControllerDockerTab extends CController {
 
 		uasort($networks, static fn (array $a, array $b): int => count($b) <=> count($a));
 
-		$legend = (new CDiv([
-			(new CSpan([(new CSpan())->addClass('mnz-docker-dot')->addClass('mnz-docker-status-running'),
-				' '._('Running')]))->addClass('mnz-docker-topo-legend-item'),
-			(new CSpan([(new CSpan())->addClass('mnz-docker-dot')->addClass('mnz-docker-status-stopped'),
-				' '._('Problem')]))->addClass('mnz-docker-topo-legend-item'),
-			(new CSpan([(new CSpan('⇄'))->addClass('mnz-docker-topo-multi'), ' '._('Multiple networks')]))
-				->addClass('mnz-docker-topo-legend-item'),
-			(new CSpan(count($networks).' '._('networks').' · '.count($memberships).' '._('containers')))
-				->addClass('mnz-docker-graphs-count')
-		]))->addClass('mnz-docker-topo-legend');
+		$summary = (new CDiv(
+			count($networks).' '._('networks').' · '.count($memberships).' '._('containers')
+		))->addClass('mnz-docker-topo-summary');
 
 		$zones = new CDiv();
 		$zones->addClass('mnz-docker-topo');
@@ -1220,7 +1304,7 @@ class CControllerDockerTab extends CController {
 			));
 		}
 
-		return $this->wrapPanel(_('Networks'), new CDiv([$legend, $zones]));
+		return $this->wrapPanel(_('Networks'), new CDiv([$summary, $zones]));
 	}
 
 	private function makeProblemsPanel(string $hostid, int $page): CDiv {

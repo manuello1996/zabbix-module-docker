@@ -25,8 +25,3 @@ html[theme="hc-dark"] {
 	--mnz-docker-series-1: #199c0d;
 	--mnz-docker-series-2: #f63100;
 }
-
-html[theme="dark-theme"] .mnz-docker-menu,
-html[theme="hc-dark"] .mnz-docker-menu {
-	box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
-}

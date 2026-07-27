@@ -129,6 +129,16 @@ zabbix-agent2:
     - "10050:10050"
 ```
 
+## Optional custom node items
+
+When these items exist on a Docker host, the module displays their latest values:
+
+| Item key | Display |
+|---|---|
+| `lxp.docker.sum_healthy` | Healthy container count in the host stat bar |
+| `lxp.docker.sum_unhealthy` | Unhealthy container count in the host stat bar |
+| `lxp.docker.compose_version` | Docker Compose version in Node info |
+
 ## Optional: automatic host inventory
 
 The module displays the standard Zabbix host inventory beneath the Node info table. To fill it
@@ -153,7 +163,6 @@ monzphere_docker/
 ├── actions/
 │   ├── CControllerDockerList.php       # nodes overview
 │   ├── CControllerDockerView.php       # node detail
-│   ├── CControllerDockerRefresh.php    # auto-refresh endpoint (JSON, CSRF)
 │   ├── CControllerDockerTab.php        # host tab panels (JSON)
 │   ├── CControllerDockerContainer.php  # container modal (JSON)
 │   └── CControllerDockerIntegration.php # host links + container search (JSON)

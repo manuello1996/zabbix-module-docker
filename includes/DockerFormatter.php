@@ -8,6 +8,8 @@ class DockerFormatter {
 			'total' => $overview['total'] !== null ? (string) $overview['total'] : self::noData(),
 			'running' => $overview['running'] !== null ? (string) $overview['running'] : self::noData(),
 			'stopped' => $overview['stopped'] !== null ? (string) $overview['stopped'] : self::noData(),
+			'healthy' => $overview['healthy'] !== null ? (string) $overview['healthy'] : self::noData(),
+			'unhealthy' => $overview['unhealthy'] !== null ? (string) $overview['unhealthy'] : self::noData(),
 			'cpu_total' => sprintf('%.2f', $overview['cpu_total']),
 			'memory_total' => self::bytes($overview['memory_total'])
 		];

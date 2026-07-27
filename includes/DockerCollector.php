@@ -11,7 +11,9 @@ class DockerCollector {
 		'docker.containers.total' => 'total',
 		'docker.containers.running' => 'running',
 		'docker.containers.stopped' => 'stopped',
-		'docker.containers.paused' => 'paused'
+		'docker.containers.paused' => 'paused',
+		'lxp.docker.sum_healthy' => 'healthy',
+		'lxp.docker.sum_unhealthy' => 'unhealthy'
 	];
 
 	public const CONTAINER_KEYS = [
@@ -265,6 +267,8 @@ class DockerCollector {
 			'running' => null,
 			'stopped' => null,
 			'paused' => null,
+			'healthy' => null,
+			'unhealthy' => null,
 			'cpu_total' => 0,
 			'memory_total' => 0
 		];

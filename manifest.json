@@ -18,10 +18,6 @@
 			"view": "monzphere.docker.view",
 			"layout": "layout.htmlpage"
 		},
-		"monzphere.docker.refresh": {
-			"class": "CControllerDockerRefresh",
-			"layout": "layout.json"
-		},
 		"monzphere.docker.problems": {
 			"class": "CControllerDockerProblems",
 			"layout": "layout.json"

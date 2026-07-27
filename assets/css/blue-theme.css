@@ -160,64 +160,6 @@
 	--mnz-icon: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 5h18v2.4L14.4 13v6l-4.8 2v-8L3 7.4V5z'/%3E%3C/svg%3E");
 }
 
-.mnz-docker-iconbtn-refresh {
-	--mnz-icon: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 4a8 8 0 1 0 7.7 10h-2.1A6 6 0 1 1 12 6c1.7 0 3.2.7 4.3 1.8L13 11h8V3l-3.3 3.3A8 8 0 0 0 12 4z'/%3E%3C/svg%3E");
-}
-
-.mnz-docker-iconbtn-kebab {
-	--mnz-icon: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='5' r='2'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E%3Ccircle cx='12' cy='19' r='2'/%3E%3C/svg%3E");
-}
-
-@keyframes mnz-docker-spin {
-	to { transform: rotate(360deg); }
-}
-
-.mnz-docker-iconbtn-busy::before {
-	animation: mnz-docker-spin .8s linear infinite;
-}
-
-.mnz-docker-kebab-wrap {
-	position: relative;
-}
-
-.mnz-docker-menu[hidden] {
-	display: none;
-}
-
-.mnz-docker-menu {
-	position: absolute;
-	top: calc(100% + 6px);
-	right: 0;
-	z-index: 100;
-	min-width: 170px;
-	display: flex;
-	flex-direction: column;
-	padding: 6px;
-	background-color: var(--mnz-docker-card-bg);
-	border: 1px solid var(--mnz-docker-card-border);
-	border-radius: 8px;
-	box-shadow: 0 8px 24px rgba(15, 25, 34, .12);
-}
-
-.mnz-docker-menu-item {
-	display: block;
-	padding: 7px 12px;
-	border: 0;
-	border-radius: 5px;
-	background: none;
-	text-align: left;
-	font-size: 13px;
-	color: var(--mnz-docker-text);
-	text-decoration: none;
-	cursor: pointer;
-}
-
-.mnz-docker-menu-item:hover {
-	background-color: var(--mnz-docker-surface-muted);
-	color: var(--mnz-docker-text);
-	text-decoration: none;
-}
-
 #mnz-docker-filters {
 	margin-bottom: 14px;
 }
@@ -349,7 +291,15 @@
 	color: var(--mnz-docker-running);
 }
 
+.mnz-docker-card-healthy .mnz-docker-card-value {
+	color: var(--mnz-docker-running);
+}
+
 .mnz-docker-card-stopped .mnz-docker-card-value {
+	color: var(--mnz-docker-stopped);
+}
+
+.mnz-docker-card-unhealthy .mnz-docker-card-value {
 	color: var(--mnz-docker-stopped);
 }
 
@@ -495,24 +445,17 @@
 	font-variant-numeric: tabular-nums;
 }
 
-.mnz-docker-topo-legend {
-	display: flex;
-	align-items: center;
-	gap: 18px;
+.mnz-docker-topo-summary {
 	margin-bottom: 14px;
 	font-size: 12.5px;
 	color: var(--mnz-docker-text-muted);
-}
-
-.mnz-docker-topo-legend-item {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
 }
 
 .mnz-docker-topo {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
 	gap: 16px;
 	align-items: start;
 }
@@ -522,6 +465,10 @@
 	border: 1px dashed var(--mnz-docker-card-border);
 	border-radius: 12px;
 	padding: 12px 14px;
+}
+
+.mnz-docker-topo-zone-wide {
+	grid-column: 1 / -1;
 }
 
 .mnz-docker-topo-zone-head {
@@ -540,7 +487,7 @@
 
 .mnz-docker-topo-nodes {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
 	gap: 8px;
 }
 
@@ -623,7 +570,7 @@
 }
 
 .mnz-docker-topo-dns-link:hover {
-	text-decoration: underline;
+	text-decoration: none;
 }
 
 .mnz-docker-topo-ports {
@@ -966,6 +913,37 @@
 	color: var(--mnz-docker-text-muted);
 }
 
+.mnz-docker-image-toolbar {
+	align-items: flex-end;
+}
+
+.mnz-docker-image-filters {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(130px, 1fr));
+	gap: 8px;
+	flex: 1 1 620px;
+}
+
+.mnz-docker-image-filter {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+
+.mnz-docker-image-filter .mnz-docker-search {
+	width: 100%;
+}
+
+.mnz-docker-image-created-old {
+	color: var(--mnz-docker-stopped);
+	font-weight: 600;
+}
+
+#mnz-docker-images-table tbody tr[hidden] {
+	display: none;
+}
+
 .mnz-docker-image-usage {
 	min-width: 235px;
 }
@@ -1043,81 +1021,66 @@
 	font-size: 11.5px;
 }
 
-.mnz-docker-compose-metadata {
-	display: flex;
+.mnz-docker-compose-deployment {
+	margin-bottom: 14px;
+}
+
+.mnz-docker-compose-deployment .mnz-docker-node-inventory-title {
+	margin-top: 2px;
+}
+
+.mnz-docker-compose-containers {
+	margin-top: 8px;
+}
+
+.mnz-docker-compose-container {
+	margin-left: 8px;
+	margin-bottom: 8px;
+}
+
+.mnz-docker-compose-container .mnz-docker-graphgroup-head {
 	flex-wrap: wrap;
-	gap: 7px;
-	margin-bottom: 10px;
+	padding-top: 9px;
+	padding-bottom: 9px;
 }
 
-.mnz-docker-compose-meta {
-	display: inline-flex;
-	align-items: center;
-	min-width: 0;
-	border: 1px solid var(--mnz-docker-card-border);
-	border-radius: 6px;
-	background-color: var(--mnz-docker-surface-muted);
-	overflow: hidden;
+.mnz-docker-compose-container-actions {
+	margin-bottom: 8px;
+	text-align: right;
 }
 
-.mnz-docker-compose-meta-key {
-	padding: 4px 7px;
+.mnz-docker-compose-container-service {
+	min-width: 110px;
 	color: var(--mnz-docker-text-muted);
-	font-size: 10.5px;
+	font-size: 11.5px;
 }
 
-.mnz-docker-compose-meta-value {
+.mnz-docker-compose-container-image {
+	flex: 1 1 180px;
+	min-width: 100px;
 	max-width: 420px;
-	padding: 4px 8px;
-	border-left: 1px solid var(--mnz-docker-card-border);
 	color: var(--mnz-docker-text);
-	font-size: 11px;
+	font-size: 11.5px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.mnz-docker-compose-label-details {
-	min-width: 250px;
-}
-
-.mnz-docker-compose-label-summary {
-	color: var(--mnz-docker-accent);
-	font-size: 11.5px;
-	cursor: pointer;
-}
-
-.mnz-docker-compose-label-list {
-	display: flex;
-	flex-direction: column;
-	gap: 5px;
-	margin-top: 8px;
-	padding: 8px;
-	border: 1px solid var(--mnz-docker-card-border);
-	border-radius: 6px;
-	background-color: var(--mnz-docker-surface-muted);
-}
-
-.mnz-docker-compose-label {
-	display: grid;
-	grid-template-columns: minmax(170px, .8fr) minmax(180px, 1.2fr);
-	gap: 10px;
-	align-items: start;
-}
-
-.mnz-docker-compose-label-key,
 .mnz-docker-label-key {
+	display: block;
+	max-width: 420px;
 	color: var(--mnz-docker-text-muted);
-	font-size: 11px;
+	font-size: 11.5px;
 	overflow-wrap: anywhere;
 }
 
-.mnz-docker-compose-label-value,
 .mnz-docker-label-value {
+	display: block;
+	max-width: 760px;
 	color: var(--mnz-docker-text);
-	font-size: 11px;
+	font-size: 11.5px;
 	overflow-wrap: anywhere;
-	white-space: pre-wrap;
+	white-space: normal;
 }
 
 .mnz-docker-modal-labels {
@@ -1126,13 +1089,14 @@
 }
 
 @media (max-width: 900px) {
-	.mnz-docker-compose-label {
-		grid-template-columns: minmax(0, 1fr);
-		gap: 2px;
+	.mnz-docker-compose-container {
+		margin-left: 0;
 	}
 
-	.mnz-docker-compose-meta-value {
-		max-width: 240px;
+	.mnz-docker-compose-container-image {
+		flex-basis: 100%;
+		order: 5;
+		max-width: none;
 	}
 }
 
@@ -1376,6 +1340,16 @@
 	.mnz-docker-idbar {
 		flex-wrap: wrap;
 	}
+
+	.mnz-docker-image-filters {
+		grid-template-columns: repeat(2, minmax(130px, 1fr));
+	}
+}
+
+@media (max-width: 600px) {
+	.mnz-docker-image-filters {
+		grid-template-columns: minmax(0, 1fr);
+	}
 }
 
 .mnz-docker-muted {
@@ -1443,8 +1417,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.mnz-docker-progress-fill,
-	.mnz-docker-iconbtn-busy::before {
+	.mnz-docker-progress-fill {
 		transition: none;
 		animation: none;
 	}

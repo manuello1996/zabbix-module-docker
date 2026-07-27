@@ -34,6 +34,12 @@ $filter = (new CFilter())
 	)
 	->addVar('action', 'monzphere.docker.view');
 
+$filter_button = new CSubmitButton(_('Filter'), 'filter_set', 1);
+
+if ($data['host'] === null) {
+	$filter_button->setAttribute('disabled', 'disabled');
+}
+
 $filterbar = (new CForm('get'))
 	->cleanItems()
 	->setName('mnz_docker_filterbar')
@@ -73,7 +79,7 @@ $filterbar = (new CForm('get'))
 					]
 				]
 			]))->setWidth(ZBX_TEXTAREA_FILTER_STANDARD_WIDTH),
-			new CSubmitButton(_('Filter'), 'filter_set', 1),
+			$filter_button,
 			(new CRedirectButton(_('Reset'),
 				(new CUrl('zabbix.php'))
 					->setArgument('action', 'monzphere.docker.view')
@@ -95,6 +101,12 @@ if ($data['host'] === null) {
 		)
 		->show();
 
+	(new CScriptTag('monzphere_docker.init('.json_encode([
+		'hostid' => ''
+	]).');'))
+		->setOnDocumentReady()
+		->show();
+
 	return;
 }
 
@@ -113,14 +125,6 @@ $makeIconButton = static function (string $modifier, string $label): CTag {
 		->setAttribute('aria-label', $label)
 		->setTitle($label);
 };
-
-$kebab_menu = (new CDiv([
-	(new CLink(_('Docker nodes'), (new CUrl('zabbix.php'))->setArgument('action', 'monzphere.docker.list')))
-		->addClass('mnz-docker-menu-item')
-]))
-	->setId('mnz-docker-kebab-menu')
-	->addClass('mnz-docker-menu')
-	->setAttribute('hidden', 'hidden');
 
 $meta_parts = [];
 
@@ -153,12 +157,7 @@ $html_page->addItem(
 			$meta_parts ? (new CDiv($meta_parts))->addClass('mnz-docker-topbar-meta') : null
 		]))->addClass('mnz-docker-topbar-info'),
 		(new CDiv([
-			$makeIconButton('filter', _('Toggle filters')),
-			$makeIconButton('refresh', _('Refresh now')),
-			(new CDiv([
-				$makeIconButton('kebab', _('More actions')),
-				$kebab_menu
-			]))->addClass('mnz-docker-kebab-wrap')
+			$makeIconButton('filter', _('Toggle filters'))
 		]))->addClass('mnz-docker-topbar-actions')
 	]))->addClass('mnz-docker-topbar')
 );
@@ -198,6 +197,8 @@ $html_page->addItem(
 	(new CDiv([
 		$makeStatSegment('total', _('Containers'), $overview['total'], '', null),
 		$makeStatSegment('running', _('Running'), $overview['running'], '', null),
+		$makeStatSegment('healthy', _('Healthy'), $overview['healthy'], '', null),
+		$makeStatSegment('unhealthy', _('Unhealthy'), $overview['unhealthy'], '', null),
 		$makeStatSegment('stopped', _('Stopped / Err'), $overview['stopped'], '', null),
 		$makeStatSegment('cpu', _('CPU usage'), $overview['cpu_total'], '%',
 			$makeSparkline($cpu_itemids, 'up', 'sum')
@@ -414,8 +415,7 @@ $html_page
 	->show();
 
 (new CScriptTag('monzphere_docker.init('.json_encode([
-	'hostid' => $data['filter']['hostid'],
-	'refresh_interval' => $data['refresh_interval']
+	'hostid' => $data['filter']['hostid']
 ]).');'))
 	->setOnDocumentReady()
 	->show();
