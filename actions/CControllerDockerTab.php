@@ -499,7 +499,11 @@ class CControllerDockerTab extends CController {
 					->setId('mnz-docker-images-filter-count')
 					->addClass('mnz-docker-graphs-count')
 			]))->addClass('mnz-docker-toolbar')->addClass('mnz-docker-image-toolbar'),
-			$table
+			$table,
+			(new CDiv([
+				(new CSpan())->addClass('mnz-docker-image-age-legend-marker'),
+				_('A red Created date indicates that the image is older than 365 days and should be updated or removed.')
+			]))->addClass('mnz-docker-image-age-legend')
 		]));
 	}
 
