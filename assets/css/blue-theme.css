@@ -384,12 +384,16 @@
 	display: flex;
 	align-items: center;
 	gap: 10px;
+	box-sizing: border-box;
 	width: 100%;
+	height: auto;
+	min-height: 38px;
 	padding: 10px 14px;
 	border: 0;
 	background: none;
 	color: var(--mnz-docker-text);
 	font-size: 13px;
+	line-height: 1.3;
 	text-align: left;
 	cursor: pointer;
 }
@@ -1008,8 +1012,23 @@
 	margin-top: 12px;
 }
 
-.mnz-docker-compose-project .mnz-docker-graphgroup-head {
+.mnz-docker-compose-project > .mnz-docker-graphgroup-head {
 	flex-wrap: wrap;
+}
+
+.mnz-docker-compose-project > .mnz-docker-graphgroup-head .mnz-docker-graphgroup-name {
+	flex: 1 1 140px;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.mnz-docker-compose-project > .mnz-docker-graphgroup-head .mnz-docker-status-running,
+.mnz-docker-compose-project > .mnz-docker-graphgroup-head .mnz-docker-status-stopped {
+	white-space: nowrap;
+}
+
+.mnz-docker-compose-project > .mnz-docker-graphgroup-head .mnz-docker-graphgroup-count {
+	margin-left: 0;
 }
 
 .mnz-docker-compose-project .mnz-docker-graphgroup-body {
@@ -1040,6 +1059,7 @@
 
 .mnz-docker-compose-container .mnz-docker-graphgroup-head {
 	flex-wrap: wrap;
+	height: auto;
 	padding-top: 9px;
 	padding-bottom: 9px;
 }
