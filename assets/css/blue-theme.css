@@ -847,12 +847,14 @@
 	color: var(--mnz-docker-orange);
 }
 
-.mnz-docker-sort {
+.mnz-docker-sort,
+.mnz-docker-image-sort {
 	cursor: pointer;
 	user-select: none;
 }
 
-.mnz-docker-sort:focus-visible {
+.mnz-docker-sort:focus-visible,
+.mnz-docker-image-sort:focus-visible {
 	outline: 2px solid var(--mnz-docker-accent);
 	outline-offset: 1px;
 }
@@ -923,9 +925,9 @@
 
 .mnz-docker-image-filters {
 	display: grid;
-	grid-template-columns: repeat(4, minmax(130px, 1fr));
+	grid-template-columns: repeat(2, minmax(130px, 1fr));
 	gap: 8px;
-	flex: 1 1 620px;
+	flex: 1 1 320px;
 }
 
 .mnz-docker-image-filter {

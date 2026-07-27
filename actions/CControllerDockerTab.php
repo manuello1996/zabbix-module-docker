@@ -12,6 +12,7 @@ use CLinkAction;
 use CMenuPopupHelper;
 use CPagerHelper;
 use CRoleHelper;
+use CRow;
 use CSettingsHelper;
 use CUrl;
 use CSeverityHelper;
@@ -362,9 +363,23 @@ class CControllerDockerTab extends CController {
 			]))->addClass('mnz-docker-stat');
 		}
 
+		$make_sort_header = static function (string $label, string $field): CSpan {
+			return (new CSpan([$label, (new CSpan())->addClass('mnz-docker-sort-arrow')]))
+				->addClass('mnz-docker-image-sort')
+				->setAttribute('data-mnz-image-sort', $field)
+				->setAttribute('role', 'button')
+				->setAttribute('tabindex', '0');
+		};
+
 		$table = (new CTableInfo())
 			->setId('mnz-docker-images-table')
-			->setHeader([_('Image'), _('ID'), _('Size'), _('Created'), _('Usage')])
+			->setHeader([
+				_('Image'),
+				_('ID'),
+				$make_sort_header(_('Size'), 'size'),
+				$make_sort_header(_('Created'), 'created'),
+				_('Usage')
+			])
 			->setNoDataMessage(_('No image data collected yet.'));
 
 		foreach ($images as $image) {
@@ -452,8 +467,8 @@ class CControllerDockerTab extends CController {
 				$usage
 			]))
 				->setAttribute('data-mnz-image-name', strtolower($image['name']))
-				->setAttribute('data-mnz-image-size', strtolower($image['size_formatted'] ?? '-'))
-				->setAttribute('data-mnz-image-created', strtolower($created_text))
+				->setAttribute('data-mnz-image-sort-size', (string) ($image['size'] ?? -1))
+				->setAttribute('data-mnz-image-sort-created', (string) ($image['created'] ?? -1))
 				->setAttribute('data-mnz-image-usage', strtolower($usage_filter));
 
 			$table->addRow($row);
@@ -463,8 +478,6 @@ class CControllerDockerTab extends CController {
 
 		foreach ([
 			'name' => _('Name'),
-			'size' => _('Size'),
-			'created' => _('Created'),
 			'usage' => _('Usage')
 		] as $field => $label) {
 			$filters[] = (new CTag('label', true, [

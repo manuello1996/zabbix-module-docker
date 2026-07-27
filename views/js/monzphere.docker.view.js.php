@@ -12,6 +12,7 @@ window.monzphere_docker = new class {
 		this._page_size = 25;
 		this._search_debounce = null;
 		this._image_filter_debounce = null;
+		this._image_sort = {field: null, dir: 1};
 		this._modal = null;
 		this._modal_trigger = null;
 		this._modal_keydown = null;
@@ -433,6 +434,59 @@ window.monzphere_docker = new class {
 		}
 	}
 
+	_sortImages(root, field) {
+		const tbody = root.querySelector('#mnz-docker-images-table tbody');
+
+		if (tbody === null) {
+			return;
+		}
+
+		if (this._image_sort.field === field) {
+			this._image_sort.dir = -this._image_sort.dir;
+		}
+		else {
+			this._image_sort = {field, dir: 1};
+		}
+
+		const {dir} = this._image_sort;
+		const property = 'mnzImageSort' + field.charAt(0).toUpperCase() + field.slice(1);
+		const rows = [...tbody.querySelectorAll('tr[data-mnz-image-name]')];
+
+		rows.sort((a, b) => {
+			const a_value = Number(a.dataset[property]);
+			const b_value = Number(b.dataset[property]);
+			const difference = (Number.isFinite(a_value) ? a_value : -1)
+				- (Number.isFinite(b_value) ? b_value : -1);
+
+			return difference !== 0
+				? dir * difference
+				: (a.dataset.mnzImageName ?? '').localeCompare(b.dataset.mnzImageName ?? '');
+		});
+		tbody.append(...rows);
+
+		for (const header of root.querySelectorAll('[data-mnz-image-sort]')) {
+			const active = header.dataset.mnzImageSort === field;
+			const arrow = header.querySelector('.mnz-docker-sort-arrow');
+			const th = header.closest('th');
+
+			arrow?.replaceChildren();
+
+			if (active) {
+				if (arrow !== null) {
+					const icon = document.createElement('span');
+
+					icon.className = dir === 1 ? 'arrow-up' : 'arrow-down';
+					arrow.append(icon);
+				}
+
+				th?.setAttribute('aria-sort', dir === 1 ? 'ascending' : 'descending');
+			}
+			else {
+				th?.removeAttribute('aria-sort');
+			}
+		}
+	}
+
 	_expandGraphGroup(group, expand) {
 		const head = group.querySelector('.mnz-docker-graphgroup-head');
 		const body = group.querySelector('.mnz-docker-graphgroup-body');
@@ -483,6 +537,14 @@ window.monzphere_docker = new class {
 				return;
 			}
 
+			const image_sort = e.target.closest('[data-mnz-image-sort]');
+
+			if (image_sort !== null && panel.contains(image_sort)) {
+				this._sortImages(panel, image_sort.dataset.mnzImageSort);
+
+				return;
+			}
+
 			const topo_node = e.target.closest('[data-mnz-container]');
 
 			if (topo_node !== null && panel.contains(topo_node)) {
@@ -522,6 +584,15 @@ window.monzphere_docker = new class {
 			this._tab_pages.set(key, page);
 			this._tab_cache.delete(key);
 			this._loadTab(key);
+		});
+
+		panel.addEventListener('keydown', (e) => {
+			const image_sort = e.target.closest('[data-mnz-image-sort]');
+
+			if (image_sort !== null && panel.contains(image_sort) && (e.key === 'Enter' || e.key === ' ')) {
+				e.preventDefault();
+				this._sortImages(panel, image_sort.dataset.mnzImageSort);
+			}
 		});
 
 		for (const tab of document.querySelectorAll('.mnz-docker-tab[data-mnz-tab]')) {
