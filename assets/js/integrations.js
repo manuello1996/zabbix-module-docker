@@ -160,6 +160,65 @@
 		});
 	}
 
+	function hostidFromSearchRow(row) {
+		const direct = row.querySelector('[data-hostid]')?.dataset.hostid || '';
+
+		if (/^\d+$/.test(direct)) {
+			return direct;
+		}
+
+		for (const link of row.querySelectorAll('a[href]')) {
+			let url;
+
+			try {
+				url = new URL(link.href, window.location.href);
+			}
+			catch (error) {
+				continue;
+			}
+
+			for (const [name, value] of url.searchParams) {
+				if (/^(?:hostid|hostids(?:\[\d*\])?|filter_hostids(?:\[\d*\])?)$/.test(name)
+						&& /^\d+$/.test(value)) {
+					return value;
+				}
+			}
+		}
+
+		return '';
+	}
+
+	function enhanceSearchHostLinks() {
+		const hosts_section = document.getElementById('search_hosts');
+		const table = hosts_section?.querySelector('table');
+
+		if (table === null || table === undefined) {
+			return;
+		}
+
+		const entries = [...table.querySelectorAll('tbody tr')].map((row) => {
+			const hostid = hostidFromSearchRow(row);
+
+			return hostid === '' ? null : {row, hostid};
+		}).filter(Boolean);
+
+		qualifyHosts(entries.map((entry) => entry.hostid)).then(() => {
+			for (const {row, hostid} of entries) {
+				if (!docker_hosts.has(hostid)) {
+					continue;
+				}
+
+				const web_cells = new Set(
+					[...row.querySelectorAll(
+						'a[href*="httpconf.php"], a[href*="action=web.view"], a[href*="action%3Dweb.view"]'
+					)].map((link) => link.closest('td')).filter(Boolean)
+				);
+
+				web_cells.forEach((cell) => replaceCell(cell, hostid));
+			}
+		});
+	}
+
 	function installHostMenuIntegration() {
 		if (typeof window.getMenuPopupHost !== 'function'
 				|| window.getMenuPopupHost.mnzDockerIntegration === true) {
@@ -312,6 +371,7 @@
 				enhanceMonitoringHosts();
 			}
 			else if (ACTION === 'search') {
+				enhanceSearchHostLinks();
 				enhanceSearch();
 			}
 		}, 0);
