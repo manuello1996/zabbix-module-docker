@@ -3,6 +3,7 @@
 
 	const ACTION = new URL(window.location.href).searchParams.get('action') || '';
 	const DOCKER_ACTION = 'monzphere.docker.view';
+	const HOST_POPUP_ACTIONS = new Set(['problem.view', 'latest.view']);
 	const docker_hosts = new Set();
 	const checked_hosts = new Set();
 	let qualification_request = Promise.resolve();
@@ -76,6 +77,23 @@
 		catch (error) {
 			return '';
 		}
+	}
+
+	function qualifyHostPopups() {
+		const hostids = [...document.querySelectorAll('[data-menu-popup]')]
+			.map((element) => {
+				try {
+					const popup = JSON.parse(element.getAttribute('data-menu-popup'));
+
+					return popup?.type === 'host' ? String(popup?.data?.hostid || '') : '';
+				}
+				catch (error) {
+					return '';
+				}
+			})
+			.filter((hostid) => hostid !== '');
+
+		return qualifyHosts(hostids);
 	}
 
 	function replaceCell(cell, hostid) {
@@ -374,13 +392,16 @@
 				enhanceSearchHostLinks();
 				enhanceSearch();
 			}
+			else if (HOST_POPUP_ACTIONS.has(ACTION)) {
+				qualifyHostPopups();
+			}
 		}, 0);
 	}
 
 	document.addEventListener('DOMContentLoaded', () => {
 		scan();
 
-		if (ACTION === 'host.view') {
+		if (ACTION === 'host.view' || HOST_POPUP_ACTIONS.has(ACTION)) {
 			new MutationObserver(scan).observe(document.body, {childList: true, subtree: true});
 		}
 	});

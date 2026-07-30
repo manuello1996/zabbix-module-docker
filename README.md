@@ -50,7 +50,7 @@ A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages t
 - **Native Zabbix integration**
   - Replaces the per-host Web endpoint with Docker in Data collection → Hosts and Monitoring → Hosts
     when the host is linked to a template whose name contains `Docker by Zabbix agent 2`
-  - Replaces Web with Docker in both the View and Configuration sections of the Monitoring host popup
+  - Replaces Web with Docker in both the View and Configuration sections of host popups, including Problems and Latest data
   - Replaces Web with Docker in global search host results for Docker-template hosts
   - Adds a `Docker Containers` section directly below Hosts in the global search results, matching both
     container names and `docker.container.description[...]` values
