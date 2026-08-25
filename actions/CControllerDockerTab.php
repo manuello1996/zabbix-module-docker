@@ -34,7 +34,10 @@ class CControllerDockerTab extends CController {
 		$fields = [
 			'hostid' =>	'required|db hosts.hostid',
 			'tab' =>	'required|in problems,graphs,node,images,volumes,mounts,networks,compose,docker',
-			'page' =>	'ge 1'
+			'page' =>	'ge 1',
+			'docker_page' => 'ge 1',
+			'other_page' => 'ge 1',
+			'problem_section' => 'in docker,other'
 		];
 
 		$ret = $this->validateInput($fields);
@@ -84,7 +87,10 @@ class CControllerDockerTab extends CController {
 
 		switch ($tab) {
 			case 'problems':
-				$panel = $this->makeProblemsPanel($hostid, $page);
+				$panel = $this->makeProblemsPanel($hostid,
+					(int) $this->getInput('docker_page', $page),
+					(int) $this->getInput('other_page', $page)
+				);
 				break;
 
 			case 'graphs':
@@ -1330,7 +1336,7 @@ class CControllerDockerTab extends CController {
 		return $this->wrapPanel(_('Networks'), new CDiv([$summary, $zones]));
 	}
 
-	private function makeProblemsPanel(string $hostid, int $page): CDiv {
+	private function makeProblemsPanel(string $hostid, int $docker_page, int $other_page): CDiv {
 		$search_limit = (int) CSettingsHelper::get(CSettingsHelper::SEARCH_LIMIT);
 
 		$problems = API::Problem()->get([
@@ -1342,19 +1348,57 @@ class CControllerDockerTab extends CController {
 			'symptom' => false,
 			'sortfield' => 'eventid',
 			'sortorder' => ZBX_SORT_DOWN,
-			'limit' => $search_limit + 1
+			'limit' => ($search_limit * 2) + 2
 		]);
 
-		$paging = CPagerHelper::paginate($page, $problems, ZBX_SORT_DOWN, $this->getTabUrl('problems'));
+		$docker_triggerids = array_flip(DockerCollector::dockerTemplateTriggerIds(
+			array_values(array_unique(array_column($problems, 'objectid')))
+		));
+		$docker_problems = [];
+		$other_problems = [];
 
-		$table = (new CTableInfo())
-			->setHeader([_('Time'), _('Severity'), _('Problem'), _('Duration'), _('Ack')])
-			->setNoDataMessage(_('No problems found.'));
+		foreach ($problems as $problem) {
+			if (array_key_exists($problem['objectid'], $docker_triggerids)) {
+				$docker_problems[] = $problem;
+			}
+			else {
+				$other_problems[] = $problem;
+			}
+		}
+
+		$docker_paging = CPagerHelper::paginate($docker_page, $docker_problems, ZBX_SORT_DOWN,
+			$this->getTabUrl('problems')->setArgument('problem_section', 'docker')
+		);
+		$other_paging = CPagerHelper::paginate($other_page, $other_problems, ZBX_SORT_DOWN,
+			$this->getTabUrl('problems')->setArgument('problem_section', 'other')
+		);
 
 		$backurl = (new CUrl('zabbix.php'))
 			->setArgument('action', 'monzphere.docker.view')
 			->setArgument('filter_hostid', [$hostid])
 			->getUrl();
+
+		$docker_table = $this->makeProblemTable($docker_problems, $backurl,
+			_('No Docker-related problems found.')
+		);
+		$other_table = $this->makeProblemTable($other_problems, $backurl,
+			_('No other host problems found.')
+		);
+
+		return $this->wrapPanel(_('Problems'), new CDiv([
+			(new CTag('h5', true, _('Docker-related problems')))->addClass('mnz-docker-subsection-title'),
+			$docker_table,
+			$docker_paging,
+			(new CTag('h5', true, _('Other host problems')))->addClass('mnz-docker-subsection-title'),
+			$other_table,
+			$other_paging
+		]));
+	}
+
+	private function makeProblemTable(array $problems, string $backurl, string $no_data_message): CTableInfo {
+		$table = (new CTableInfo())
+			->setHeader([_('Time'), _('Severity'), _('Problem'), _('Duration'), _('Ack')])
+			->setNoDataMessage($no_data_message);
 
 		foreach ($problems as $problem) {
 			$severity = (int) $problem['severity'];
@@ -1385,7 +1429,7 @@ class CControllerDockerTab extends CController {
 			]);
 		}
 
-		return $this->wrapPanel(_('Problems'), new CDiv([$table, $paging]));
+		return $table;
 	}
 
 	private function makeGraphsPanel(string $hostid): CDiv {

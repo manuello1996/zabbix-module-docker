@@ -4,7 +4,7 @@
 	"type": "module",
 	"name": "Docker Monitoring",
 	"namespace": "MonzphereDocker",
-	"version": "1.2",
+	"version": "1.3",
 	"author": "MonZphere",
 	"description": "Docker container overview and per-container metrics collected by Zabbix agent 2.",
 	"actions": {
@@ -17,6 +17,11 @@
 			"class": "CControllerDockerView",
 			"view": "monzphere.docker.view",
 			"layout": "layout.htmlpage"
+		},
+		"monzphere.docker.images.csv": {
+			"class": "CControllerDockerImagesCsv",
+			"view": "monzphere.docker.images.csv",
+			"layout": "layout.csv"
 		},
 		"monzphere.docker.problems": {
 			"class": "CControllerDockerProblems",

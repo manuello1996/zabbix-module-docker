@@ -1,5 +1,8 @@
 <?php declare(strict_types = 0);
 ?>
+<script type="text/x-jquery-tmpl" id="filter-tag-row-tmpl">
+	<?= CTagFilterFieldHelper::getTemplate(); ?>
+</script>
 <script>
 window.monzphere_docker_list = new class {
 	init({refresh_interval}) {
@@ -13,6 +16,7 @@ window.monzphere_docker_list = new class {
 		this._problem_request = null;
 
 		this._loadProblems();
+		this._initTagFilter();
 
 		if (!this._interval) {
 			return;
@@ -22,6 +26,23 @@ window.monzphere_docker_list = new class {
 		this._updateStatus();
 
 		setInterval(() => this._updateStatus(), 1000);
+	}
+
+	_initTagFilter() {
+		if (typeof CTagFilterItem === 'undefined' || typeof $ === 'undefined'
+				|| typeof $.fn.dynamicRows === 'undefined') {
+			return;
+		}
+
+		$('#filter-tags')
+			.dynamicRows({template: '#filter-tag-row-tmpl'})
+			.on('afteradd.dynamicRows', function () {
+				const rows = this.querySelectorAll('.form_row');
+
+				new CTagFilterItem(rows[rows.length - 1]);
+			});
+
+		document.querySelectorAll('#filter-tags .form_row').forEach((row) => new CTagFilterItem(row));
 	}
 
 	_updateStatus() {
@@ -133,13 +154,15 @@ window.monzphere_docker_list = new class {
 				const doc = new DOMParser().parseFromString(html, 'text/html');
 				const cards = doc.getElementById('mnz-docker-list-cards');
 				const tbody = doc.querySelector('#mnz-docker-nodes-table tbody');
+				const paging = doc.getElementById('mnz-docker-list-paging');
 
-				if (cards === null || tbody === null) {
+				if (cards === null || tbody === null || paging === null) {
 					throw new Error();
 				}
 
 				document.getElementById('mnz-docker-list-cards').replaceWith(cards);
 				document.querySelector('#mnz-docker-nodes-table tbody').replaceWith(tbody);
+				document.getElementById('mnz-docker-list-paging').replaceWith(paging);
 				this._loadProblems();
 
 				this._failures = 0;

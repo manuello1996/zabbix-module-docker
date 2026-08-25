@@ -1,7 +1,6 @@
 <?php declare(strict_types = 0);
 
-use Modules\MonzphereDocker\Includes\DockerFormatter;
-
+$this->addJsFile('class.tagfilteritem.js');
 $this->includeJsFile('monzphere.docker.list.js.php', ['refresh_interval' => $data['refresh_interval']]);
 
 $makeStatSegment = static function (string $modifier, string $label, string $value, string $unit): CDiv {
@@ -21,21 +20,35 @@ $html_page = (new CHtmlPage())
 	->setWebLayoutMode(CViewHelper::loadLayoutMode());
 
 $html_page->addItem(
-	(new CDiv(
+	(new CDiv([
 		(new CDiv([
 			(new CSpan(_('Nodes')))->addClass('mnz-docker-breadcrumb-current')
 		]))
 			->addClass('mnz-docker-breadcrumb')
-			->setAttribute('aria-label', _('Breadcrumb'))
-	))->addClass('mnz-docker-topbar')
+			->setAttribute('aria-label', _('Breadcrumb')),
+		(new CDiv([
+			(new CRedirectButton(
+				_('Export images older than 365 days (CSV)'),
+				(new CUrl('zabbix.php'))->setArgument('action', 'monzphere.docker.images.csv')
+			))->addClass(ZBX_STYLE_BTN_ALT)
+		]))->addClass('mnz-docker-topbar-actions')
+	]))->addClass('mnz-docker-topbar')
 );
 
-$filter_form = (new CFormGrid())
-	->addClass('mnz-docker-filter-row')
+$filter_left = (new CFormGrid())
+	->addClass(CFormGrid::ZBX_STYLE_FORM_GRID_LABEL_WIDTH_TRUE)
+	->addItem([
+		new CLabel(_('Name'), 'filter_name'),
+		new CFormField(
+			(new CTextBox('filter_name', $data['filter']['name']))
+				->setWidth(ZBX_TEXTAREA_FILTER_STANDARD_WIDTH)
+		)
+	])
 	->addItem([
 		new CLabel(_('Host groups'), 'filter_groupids__ms'),
 		new CFormField(
 			(new CMultiSelect([
+				'multiple' => true,
 				'name' => 'filter_groupids[]',
 				'object_name' => 'hostGroup',
 				'data' => $data['filter']['groups'],
@@ -52,22 +65,52 @@ $filter_form = (new CFormGrid())
 		)
 	])
 	->addItem([
-		new CLabel(_('Hosts'), 'filter_hostids__ms'),
+		new CLabel(_('Container state')),
 		new CFormField(
-			(new CMultiSelect([
-				'name' => 'filter_hostids[]',
-				'object_name' => 'hosts',
-				'data' => $data['filter']['hosts'],
-				'popup' => [
-					'parameters' => [
-						'srctbl' => 'hosts',
-						'srcfld1' => 'hostid',
-						'dstfrm' => 'zbx_filter',
-						'dstfld1' => 'filter_hostids_',
-						'with_monitored_items' => true
-					]
+			(new CCheckBoxList('filter_container_states'))
+				->setOptions([
+					['label' => _('Has stopped containers'), 'value' => 'stopped'],
+					['label' => _('Has paused containers'), 'value' => 'paused'],
+					['label' => _('Has unhealthy containers'), 'value' => 'unhealthy'],
+					['label' => _('No running containers'), 'value' => 'no_running']
+				])
+				->setChecked($data['filter']['container_states'])
+				->setColumns(2)
+				->setVertical()
+		)
+	]);
+
+$filter_right = (new CFormGrid())
+	->addClass(CFormGrid::ZBX_STYLE_FORM_GRID_LABEL_WIDTH_TRUE)
+	->addItem([
+		new CLabel(_('Host tags')),
+		new CFormField(
+			CTagFilterFieldHelper::getTagFilterField([
+				'evaltype' => $data['filter']['tag_evaltype'],
+				'tags' => $data['filter']['tags'] ?: [
+					['tag' => '', 'operator' => TAG_OPERATOR_LIKE, 'value' => '']
 				]
-			]))->setWidth(ZBX_TEXTAREA_FILTER_STANDARD_WIDTH)
+			], [
+				'evaltype_field_name' => 'filter_tag_evaltype'
+			])
+		)
+	])
+	->addItem([
+		new CLabel(_('Problems'), 'filter_problems'),
+		new CFormField(
+			(new CCheckBox('filter_problems', 1))
+				->setLabel(_('Show only hosts with problems'))
+				->setChecked((int) $data['filter']['problems'] === 1)
+				->setUncheckedValue(0)
+		)
+	])
+	->addItem([
+		new CLabel(_('Docker template'), 'filter_docker_problems'),
+		new CFormField(
+			(new CCheckBox('filter_docker_problems', 1))
+				->setLabel(_('Show only hosts with Docker template problems'))
+				->setChecked((int) $data['filter']['docker_problems'] === 1)
+				->setUncheckedValue(0)
 		)
 	]);
 
@@ -75,8 +118,9 @@ $html_page->addItem(
 	(new CFilter())
 		->setResetUrl(new CUrl('zabbix.php?action=monzphere.docker.list'))
 		->setProfile('web.monzphere.docker.list.filter')
+		->setActiveTab($data['active_tab'])
 		->addVar('action', 'monzphere.docker.list')
-		->addFilterTab(_('Filter'), [$filter_form])
+		->addFilterTab(_('Filter'), [$filter_left, $filter_right])
 );
 
 $html_page->addItem(
@@ -93,6 +137,19 @@ $html_page->addItem(
 	]))->addClass('mnz-docker-section')
 );
 
+$no_data_message = _('No Docker nodes found. Link the "Docker by Zabbix agent 2" template to your hosts.');
+
+if ($data['filter']['docker_problems']) {
+	$no_data_message = _('No Docker hosts with Docker template problems found.');
+}
+elseif ($data['filter']['problems']) {
+	$no_data_message = _('No Docker hosts with problems found.');
+}
+elseif ($data['filter']['name'] !== '' || $data['filter']['groupids']
+		|| $data['filter']['container_states'] || $data['filter']['tags']) {
+	$no_data_message = _('No Docker hosts match the selected filters.');
+}
+
 $table = (new CTableInfo())
 	->setId('mnz-docker-nodes-table')
 	->setHeader([
@@ -100,14 +157,13 @@ $table = (new CTableInfo())
 		_('Notes'),
 		_('Availability'),
 		_('Problems'),
-		_('Docker version'),
 		_('Containers'),
 		_('Running'),
 		_('Stopped'),
 		_('Paused'),
-		_('Host memory')
+		_('Tags')
 	])
-	->setNoDataMessage(_('No Docker nodes found. Link the "Docker by Zabbix agent 2" template to your hosts.'));
+	->setNoDataMessage($no_data_message);
 
 foreach ($data['nodes'] as $node) {
 	$metrics = $node['metrics'];
@@ -135,8 +191,6 @@ foreach ($data['nodes'] as $node) {
 			->setAttribute('data-mnz-problem-hostid', $node['hostid'])
 			->setAttribute('aria-label', _('Loading problems')),
 
-		$metrics['version'] !== null ? $metrics['version'] : '-',
-
 		$metrics['total'] !== null ? (string) (int) $metrics['total'] : '-',
 
 		(new CSpan($metrics['running'] !== null ? (string) (int) $metrics['running'] : '-'))
@@ -147,7 +201,7 @@ foreach ($data['nodes'] as $node) {
 
 		$metrics['paused'] !== null ? (string) (int) $metrics['paused'] : '-',
 
-		$metrics['memory'] !== null ? DockerFormatter::bytes($metrics['memory']) : '-'
+		$node['formatted_tags'] ?: '-'
 	]);
 }
 
@@ -164,7 +218,7 @@ $html_page
 			]))->addClass('mnz-docker-section-title'),
 			$table,
 
-			$data['paging']
+			$data['paging']->setId('mnz-docker-list-paging')
 		]))->addClass('mnz-docker-section')
 	)
 	->show();

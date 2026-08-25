@@ -7,6 +7,8 @@ use CSettingsHelper;
 use Manager;
 
 class DockerCollector {
+	private const DOCKER_TEMPLATE_NAME_FRAGMENT = 'Docker by Zabbix agent 2';
+
 	public const HOST_KEYS = [
 		'docker.containers.total' => 'total',
 		'docker.containers.running' => 'running',
@@ -167,18 +169,47 @@ class DockerCollector {
 	}
 
 	public static function problemsByHosts(array $hostids): array {
-		if (!$hostids) {
+		return self::collectProblemsByHosts($hostids, false);
+	}
+
+	public static function dockerTemplateProblemsByHosts(array $hostids): array {
+		return self::collectProblemsByHosts($hostids, true);
+	}
+
+	public static function dockerTemplateTriggerIds(array $triggerids): array {
+		if (!$triggerids) {
 			return [];
 		}
 
 		$triggers = API::Trigger()->get([
-			'output' => [],
+			'output' => ['templateid'],
+			'triggerids' => $triggerids,
+			'selectTriggerDiscovery' => ['parent_triggerid'],
+			'preservekeys' => true
+		]);
+
+		return array_keys(self::getDockerTemplateTriggerDescendants($triggerids, $triggers));
+	}
+
+	private static function collectProblemsByHosts(array $hostids, bool $docker_template_only): array {
+		if (!$hostids) {
+			return [];
+		}
+
+		$trigger_options = [
+			'output' => $docker_template_only ? ['templateid'] : [],
 			'selectHosts' => ['hostid'],
 			'hostids' => $hostids,
 			'skipDependent' => true,
 			'monitored' => true,
 			'preservekeys' => true
-		]);
+		];
+
+		if ($docker_template_only) {
+			$trigger_options['selectTriggerDiscovery'] = ['parent_triggerid'];
+		}
+
+		$triggers = API::Trigger()->get($trigger_options);
 
 		if (!$triggers) {
 			return [];
@@ -192,6 +223,15 @@ class DockerCollector {
 			'suppressed' => false,
 			'symptom' => false
 		]);
+
+		if ($docker_template_only) {
+			$docker_triggerids = self::getDockerTemplateTriggerDescendants(
+				array_values(array_unique(array_column($problems, 'objectid'))), $triggers
+			);
+			$problems = array_filter($problems,
+				static fn (array $problem): bool => array_key_exists($problem['objectid'], $docker_triggerids)
+			);
+		}
 
 		$wanted = array_flip($hostids);
 		$result = [];
@@ -215,6 +255,107 @@ class DockerCollector {
 			$row = ['by_severity' => $by_severity];
 		}
 		unset($row);
+
+		return $result;
+	}
+
+	private static function getDockerTemplateTriggerDescendants(array $triggerids, array $known_triggers): array {
+		if (!$triggerids) {
+			return [];
+		}
+
+		$templates = API::Template()->get([
+			'output' => [],
+			'search' => ['name' => self::DOCKER_TEMPLATE_NAME_FRAGMENT],
+			'preservekeys' => true
+		]);
+
+		if (!$templates) {
+			return [];
+		}
+
+		$template_triggers = API::Trigger()->get([
+			'output' => [],
+			'templateids' => array_keys($templates),
+			'preservekeys' => true
+		]);
+		$template_trigger_prototypes = API::TriggerPrototype()->get([
+			'output' => [],
+			'templateids' => array_keys($templates),
+			'preservekeys' => true
+		]);
+
+		if (!$template_triggers && !$template_trigger_prototypes) {
+			return [];
+		}
+
+		$docker_triggerids = array_fill_keys(
+			array_merge(array_keys($template_triggers), array_keys($template_trigger_prototypes)), true
+		);
+		$parents = [];
+
+		foreach ($known_triggers as $triggerid => $trigger) {
+			$discovery_parentid = (string) ($trigger['triggerDiscovery']['parent_triggerid'] ?? '0');
+			$parents[$triggerid] = $discovery_parentid !== '0'
+				? $discovery_parentid
+				: (string) ($trigger['templateid'] ?? '0');
+		}
+
+		$pending = [];
+
+		foreach ($triggerids as $triggerid) {
+			$parentid = $parents[$triggerid] ?? '0';
+
+			if ($parentid !== '0' && !array_key_exists($parentid, $parents)
+					&& !array_key_exists($parentid, $docker_triggerids)) {
+				$pending[$parentid] = true;
+			}
+		}
+
+		while ($pending) {
+			$ancestors = API::Trigger()->get([
+				'output' => ['templateid'],
+				'triggerids' => array_keys($pending),
+				'selectTriggerDiscovery' => ['parent_triggerid'],
+				'preservekeys' => true
+			]);
+			$ancestor_prototypes = API::TriggerPrototype()->get([
+				'output' => ['templateid'],
+				'triggerids' => array_keys($pending),
+				'preservekeys' => true
+			]);
+			$pending = [];
+
+			foreach ($ancestors + $ancestor_prototypes as $triggerid => $trigger) {
+				$discovery_parentid = (string) ($trigger['triggerDiscovery']['parent_triggerid'] ?? '0');
+				$parentid = $discovery_parentid !== '0'
+					? $discovery_parentid
+					: (string) ($trigger['templateid'] ?? '0');
+				$parents[$triggerid] = $parentid;
+
+				if ($parentid !== '0' && !array_key_exists($parentid, $parents)
+						&& !array_key_exists($parentid, $docker_triggerids)) {
+					$pending[$parentid] = true;
+				}
+			}
+		}
+
+		$result = [];
+
+		foreach ($triggerids as $triggerid) {
+			$currentid = (string) $triggerid;
+			$visited = [];
+
+			while ($currentid !== '0' && !array_key_exists($currentid, $visited)) {
+				if (array_key_exists($currentid, $docker_triggerids)) {
+					$result[$triggerid] = true;
+					break;
+				}
+
+				$visited[$currentid] = true;
+				$currentid = $parents[$currentid] ?? '0';
+			}
+		}
 
 		return $result;
 	}

@@ -32,10 +32,14 @@ A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages t
 
 - **Docker nodes overview** (`Monitoring → Docker`)
   - Aggregated environment cards: nodes, total / running / stopped containers
-  - Per-node table: availability badges, active problems by severity, Docker version, container counts, host memory
-  - Group / name filtering persisted per user, native pagination
+  - Per-node table: availability badges, active problems by severity, container counts, host tags
+  - Host-group and free-text filtering (visible host name or inventory notes), persisted per user
+  - Optional container state, host-tag, all-problem and Docker-template-problem filters
+  - Docker-template problem matching includes templates whose visible name contains `Docker by Zabbix agent 2`
+  - CSV export of every collected image older than 365 days, with Team, Host, inventory Notes, Image and creation Date columns
 - **Node detail page**
   - Host bar with availability badges (native hint popups) and compact stat pills
+  - Problems split into Docker-template-originated and other host problems
   - Container table: status, CPU and memory with inline SVG sparklines, network I/O, uptime
   - Client-side search, status chips and sortable columns that survive auto-refresh
   - Container detail modal with ad-hoc CPU / memory / network charts

@@ -8,6 +8,7 @@ window.monzphere_docker = new class {
 		this._content = null;
 		this._tab_cache = new Map();
 		this._tab_pages = new Map();
+		this._problem_pages = new Map([['docker', '1'], ['other', '1']]);
 		this._table_state = {search: '', status: 'all', sort: null, dir: 1, page: 1};
 		this._page_size = 25;
 		this._search_debounce = null;
@@ -579,9 +580,20 @@ window.monzphere_docker = new class {
 			}
 
 			const key = active.dataset.mnzTab;
-			const page = new URL(page_link.href, location.origin).searchParams.get('page') ?? '1';
+			const page_url = new URL(page_link.href, location.origin);
+			const page = page_url.searchParams.get('page') ?? '1';
 
-			this._tab_pages.set(key, page);
+			if (key === 'problems') {
+				const section = page_url.searchParams.get('problem_section');
+
+				if (section === 'docker' || section === 'other') {
+					this._problem_pages.set(section, page);
+				}
+			}
+			else {
+				this._tab_pages.set(key, page);
+			}
+
 			this._tab_cache.delete(key);
 			this._loadTab(key);
 		});
@@ -656,7 +668,14 @@ window.monzphere_docker = new class {
 			url.setArgument('action', 'monzphere.docker.tab');
 			url.setArgument('hostid', this._hostid);
 			url.setArgument('tab', key);
-			url.setArgument('page', this._tab_pages.get(key) ?? '1');
+
+			if (key === 'problems') {
+				url.setArgument('docker_page', this._problem_pages.get('docker') ?? '1');
+				url.setArgument('other_page', this._problem_pages.get('other') ?? '1');
+			}
+			else {
+				url.setArgument('page', this._tab_pages.get(key) ?? '1');
+			}
 
 			this._tab_cache.set(key,
 				fetch(url.getUrl())
