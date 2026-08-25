@@ -1,27 +1,4 @@
 # Docker Monitoring — Zabbix Frontend Module
-![views](https://komarev.com/ghpvc/?username=matheusandrade&repo=https://github.com/Monzphere/zabbix-module-docker) 
-![Stars](https://img.shields.io/github/stars/Monzphere/zabbix-module-docker?style=social)
-![Forks](https://img.shields.io/github/forks/Monzphere/zabbix-module-docker?style=social)
-![Issues](https://img.shields.io/github/issues/Monzphere/zabbix-module-docker)
-
-
-## ❤️ Support MonZphere
-
-If you find this project useful and would like to support its continued development, you can make a donation.
-
-Your contribution helps us maintain the project, develop new features, fix bugs, improve documentation, and continue providing high-quality tools to the community.
-
-Every contribution, no matter the amount, is greatly appreciated.
-
-👉 **Support MonZphere:** https://checkout.monzphere.com/b/aFa7sK0Xh3vp4I6exV53O0c
-
-Thank you for supporting our work! 🚀
-
-Developed by [MonZphere](https://monzphere.com) — Zabbix Integration Partner.
-
-<a href="https://monzphere.com"><img src="assets/img/zabbix-partner.svg" alt="Zabbix Integration Partner" width="170"/></a>
-
-
 <img width="1240" height="767" alt="Captura de Tela 2026-07-19 às 19 40 23" src="https://github.com/user-attachments/assets/fb54ddc0-2fbb-4711-8570-47dc40b68bc2" />
 <img width="1237" height="758" alt="Captura de Tela 2026-07-19 às 19 41 02" src="https://github.com/user-attachments/assets/7c9f647e-46e0-4425-b9dc-f9a5bd10a28f" />
 <img width="1238" height="765" alt="Captura de Tela 2026-07-19 às 19 41 41" src="https://github.com/user-attachments/assets/35852994-8a98-459e-8fd5-3a50bb2da1bd" />
@@ -94,15 +71,15 @@ stores only container identity, image, state and labels.
 
    ```bash
    cd /usr/share/zabbix/modules   # path may differ in your installation
-   git clone https://github.com/Monzphere/zabbix-module-docker.git monzphere_docker
+   git clone <repository-url> monitor_docker
    ```
 
-   > The target directory name must be `monzphere_docker`.
+   > The target directory name must be `monitor_docker`.
 
 2. **Fix ownership** so the web server can read the files:
 
    ```bash
-   chown -R www-data:www-data monzphere_docker   # apache/nginx user
+   chown -R www-data:www-data monitor_docker   # apache/nginx user
    ```
 
 3. **Register the module** in the Zabbix frontend:
@@ -162,7 +139,7 @@ automatically from Docker engine facts, set the hosts' inventory mode to
 ## Module structure
 
 ```
-monzphere_docker/
+monitor_docker/
 ├── manifest.json                    # module manifest (v2.0)
 ├── Module.php                       # menu entry + time selector registration
 ├── actions/
@@ -175,11 +152,11 @@ monzphere_docker/
 │   ├── DockerCollector.php          # metric collection / normalization
 │   └── DockerFormatter.php          # display formatting
 ├── views/
-│   ├── monzphere.docker.list.php
-│   ├── monzphere.docker.view.php
+│   ├── docker.list.php
+│   ├── docker.view.php
 │   └── js/
-│       ├── monzphere.docker.list.js.php
-│       └── monzphere.docker.view.js.php
+│       ├── docker.list.js.php
+│       └── docker.view.js.php
 ├── templates/
 │   └── docker_by_zabbix_agent_2.yaml   # bundled template (networks/volumes items)
 └── assets/
@@ -195,8 +172,8 @@ monzphere_docker/
 ## Uninstall
 
 Disable the module in **Administration → General → Modules**, then remove the
-`monzphere_docker` directory.
+`monitor_docker` directory.
 
 ---
 
-Developed by **MonZphere**.
+Developed by **Manuel Pesenti**.

@@ -4,7 +4,7 @@
 	<?= CTagFilterFieldHelper::getTemplate(); ?>
 </script>
 <script>
-window.monzphere_docker_list = new class {
+window.monitor_docker_list = new class {
 	init({refresh_interval}) {
 		document.querySelector('header.header-title')?.remove();
 
@@ -12,7 +12,7 @@ window.monzphere_docker_list = new class {
 		this._timer = null;
 		this._last_refresh = Date.now();
 		this._failures = 0;
-		this._status = document.getElementById('mnz-docker-list-refresh-status');
+		this._status = document.getElementById('docker-list-refresh-status');
 		this._problem_request = null;
 
 		this._loadProblems();
@@ -69,8 +69,8 @@ window.monzphere_docker_list = new class {
 	}
 
 	_loadProblems() {
-		const targets = [...document.querySelectorAll('[data-mnz-problem-hostid]')];
-		const hostids = [...new Set(targets.map((target) => target.dataset.mnzProblemHostid))];
+		const targets = [...document.querySelectorAll('[data-problem-hostid]')];
+		const hostids = [...new Set(targets.map((target) => target.dataset.problemHostid))];
 
 		if (hostids.length === 0) {
 			return;
@@ -78,7 +78,7 @@ window.monzphere_docker_list = new class {
 
 		const url = new Curl('zabbix.php');
 
-		url.setArgument('action', 'monzphere.docker.problems');
+		url.setArgument('action', 'docker.problems');
 		url.setArgument('hostids', hostids);
 
 		const request = fetch(url.getUrl(), {cache: 'no-store'})
@@ -89,12 +89,12 @@ window.monzphere_docker_list = new class {
 				}
 
 				for (const target of targets) {
-					const badges = response.hosts?.[target.dataset.mnzProblemHostid] ?? [];
+					const badges = response.hosts?.[target.dataset.problemHostid] ?? [];
 
 					if (badges.length === 0) {
 						const empty = document.createElement('span');
 
-						empty.className = 'mnz-docker-muted';
+						empty.className = 'docker-muted';
 						empty.textContent = '-';
 						target.replaceWith(empty);
 
@@ -122,7 +122,7 @@ window.monzphere_docker_list = new class {
 				for (const target of targets) {
 					const empty = document.createElement('span');
 
-					empty.className = 'mnz-docker-muted';
+					empty.className = 'docker-muted';
 					empty.textContent = '-';
 					target.replaceWith(empty);
 				}
@@ -134,7 +134,7 @@ window.monzphere_docker_list = new class {
 	_reload() {
 		const url = new Curl('zabbix.php');
 
-		url.setArgument('action', 'monzphere.docker.list');
+		url.setArgument('action', 'docker.list');
 
 		const page = new URLSearchParams(location.search).get('page');
 
@@ -152,17 +152,17 @@ window.monzphere_docker_list = new class {
 			})
 			.then((html) => {
 				const doc = new DOMParser().parseFromString(html, 'text/html');
-				const cards = doc.getElementById('mnz-docker-list-cards');
-				const tbody = doc.querySelector('#mnz-docker-nodes-table tbody');
-				const paging = doc.getElementById('mnz-docker-list-paging');
+				const cards = doc.getElementById('docker-list-cards');
+				const tbody = doc.querySelector('#docker-nodes-table tbody');
+				const paging = doc.getElementById('docker-list-paging');
 
 				if (cards === null || tbody === null || paging === null) {
 					throw new Error();
 				}
 
-				document.getElementById('mnz-docker-list-cards').replaceWith(cards);
-				document.querySelector('#mnz-docker-nodes-table tbody').replaceWith(tbody);
-				document.getElementById('mnz-docker-list-paging').replaceWith(paging);
+				document.getElementById('docker-list-cards').replaceWith(cards);
+				document.querySelector('#docker-nodes-table tbody').replaceWith(tbody);
+				document.getElementById('docker-list-paging').replaceWith(paging);
 				this._loadProblems();
 
 				this._failures = 0;
@@ -178,6 +178,6 @@ window.monzphere_docker_list = new class {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-	monzphere_docker_list.init({refresh_interval: <?= json_encode($data['refresh_interval'] ?? 0) ?>});
+	monitor_docker_list.init({refresh_interval: <?= json_encode($data['refresh_interval'] ?? 0) ?>});
 });
 </script>

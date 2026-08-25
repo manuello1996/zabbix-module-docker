@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 
-namespace Modules\MonzphereDocker\Includes;
+namespace Modules\MonitorDocker\Includes;
 
 use API;
 use CSettingsHelper;

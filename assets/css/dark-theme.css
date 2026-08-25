@@ -1,27 +1,27 @@
 html[theme="dark-theme"],
 html[theme="hc-dark"] {
 
-	--mnz-docker-card-bg: #2b2b2b;
-	--mnz-docker-card-border: #3d3d3d;
-	--mnz-docker-text: #f2f2f2;
-	--mnz-docker-text-muted: #a6a6a6;
-	--mnz-docker-running: #3dbb70;
-	--mnz-docker-stopped: #ff5c5c;
-	--mnz-docker-accent: #4796c6;
-	--mnz-docker-strong: #dfe7ee;
-	--mnz-docker-primary-fg: #16232e;
-	--mnz-docker-surface-muted: #333333;
-	--mnz-docker-tint-red: rgba(255, 92, 92, .07);
-	--mnz-docker-blue: #6aa9e8;
-	--mnz-docker-orange: #f0975a;
-	--mnz-docker-crit: #ff6b6b;
-	--mnz-docker-progress: #3dbb70;
-	--mnz-docker-ok-bg: rgba(61, 187, 112, .12);
-	--mnz-docker-ok-bd: rgba(61, 187, 112, .45);
-	--mnz-docker-ok-fg: #52d183;
-	--mnz-docker-bad-bg: rgba(255, 92, 92, .12);
-	--mnz-docker-bad-bd: rgba(255, 92, 92, .45);
-	--mnz-docker-bad-fg: #ff7676;
-	--mnz-docker-series-1: #199c0d;
-	--mnz-docker-series-2: #f63100;
+	--docker-card-bg: #2b2b2b;
+	--docker-card-border: #3d3d3d;
+	--docker-text: #f2f2f2;
+	--docker-text-muted: #a6a6a6;
+	--docker-running: #3dbb70;
+	--docker-stopped: #ff5c5c;
+	--docker-accent: #4796c6;
+	--docker-strong: #dfe7ee;
+	--docker-primary-fg: #16232e;
+	--docker-surface-muted: #333333;
+	--docker-tint-red: rgba(255, 92, 92, .07);
+	--docker-blue: #6aa9e8;
+	--docker-orange: #f0975a;
+	--docker-crit: #ff6b6b;
+	--docker-progress: #3dbb70;
+	--docker-ok-bg: rgba(61, 187, 112, .12);
+	--docker-ok-bd: rgba(61, 187, 112, .45);
+	--docker-ok-fg: #52d183;
+	--docker-bad-bg: rgba(255, 92, 92, .12);
+	--docker-bad-bd: rgba(255, 92, 92, .45);
+	--docker-bad-fg: #ff7676;
+	--docker-series-1: #199c0d;
+	--docker-series-2: #f63100;
 }

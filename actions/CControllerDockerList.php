@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 
-namespace Modules\MonzphereDocker\Actions;
+namespace Modules\MonitorDocker\Actions;
 
 use API;
 use CController;
@@ -12,18 +12,18 @@ use CRoleHelper;
 use CSettingsHelper;
 use CUrl;
 use CWebUser;
-use Modules\MonzphereDocker\Includes\DockerCollector;
+use Modules\MonitorDocker\Includes\DockerCollector;
 
 class CControllerDockerList extends CController {
-	public const PROFILE_GROUPIDS = 'web.monzphere.docker.list.filter.groupids';
-	public const PROFILE_NAME = 'web.monzphere.docker.list.filter.name';
-	public const PROFILE_PROBLEMS = 'web.monzphere.docker.list.filter.problems';
-	public const PROFILE_DOCKER_PROBLEMS = 'web.monzphere.docker.list.filter.docker_problems';
-	public const PROFILE_CONTAINER_STATES = 'web.monzphere.docker.list.filter.container_states';
-	public const PROFILE_TAG_EVALTYPE = 'web.monzphere.docker.list.filter.tag_evaltype';
-	public const PROFILE_TAGS_TAG = 'web.monzphere.docker.list.filter.tags.tag';
-	public const PROFILE_TAGS_VALUE = 'web.monzphere.docker.list.filter.tags.value';
-	public const PROFILE_TAGS_OPERATOR = 'web.monzphere.docker.list.filter.tags.operator';
+	public const PROFILE_GROUPIDS = 'web.docker.list.filter.groupids';
+	public const PROFILE_NAME = 'web.docker.list.filter.name';
+	public const PROFILE_PROBLEMS = 'web.docker.list.filter.problems';
+	public const PROFILE_DOCKER_PROBLEMS = 'web.docker.list.filter.docker_problems';
+	public const PROFILE_CONTAINER_STATES = 'web.docker.list.filter.container_states';
+	public const PROFILE_TAG_EVALTYPE = 'web.docker.list.filter.tag_evaltype';
+	public const PROFILE_TAGS_TAG = 'web.docker.list.filter.tags.tag';
+	public const PROFILE_TAGS_VALUE = 'web.docker.list.filter.tags.value';
+	public const PROFILE_TAGS_OPERATOR = 'web.docker.list.filter.tags.operator';
 
 	private const CONTAINER_STATES = ['stopped', 'paused', 'unhealthy', 'no_running'];
 
@@ -95,7 +95,7 @@ class CControllerDockerList extends CController {
 		if ($this->hasInput('filter_rst')) {
 			CProfile::deleteIdx(self::PROFILE_GROUPIDS);
 			CProfile::delete(self::PROFILE_NAME);
-			CProfile::deleteIdx('web.monzphere.docker.list.filter.hostids');
+			CProfile::deleteIdx('web.docker.list.filter.hostids');
 			CProfile::delete(self::PROFILE_PROBLEMS);
 			CProfile::delete(self::PROFILE_DOCKER_PROBLEMS);
 			CProfile::deleteIdx(self::PROFILE_CONTAINER_STATES);
@@ -109,7 +109,7 @@ class CControllerDockerList extends CController {
 			CProfile::updateArray(self::PROFILE_GROUPIDS, $this->getInput('filter_groupids', []),
 				PROFILE_TYPE_ID
 			);
-			CProfile::deleteIdx('web.monzphere.docker.list.filter.hostids');
+			CProfile::deleteIdx('web.docker.list.filter.hostids');
 			CProfile::update(self::PROFILE_PROBLEMS, (int) $this->getInput('filter_problems', 0),
 				PROFILE_TYPE_INT
 			);
@@ -269,7 +269,7 @@ class CControllerDockerList extends CController {
 
 		$nodes = array_values($nodes);
 		$paging = CPagerHelper::paginate((int) $this->getInput('page', 1), $nodes, ZBX_SORT_UP,
-			(new CUrl('zabbix.php'))->setArgument('action', 'monzphere.docker.list')
+			(new CUrl('zabbix.php'))->setArgument('action', 'docker.list')
 		);
 
 		$response = new CControllerResponseData([
@@ -289,7 +289,7 @@ class CControllerDockerList extends CController {
 			'paging' => $paging,
 			'nodes' => $nodes,
 			'totals' => $totals,
-			'active_tab' => CProfile::get('web.monzphere.docker.list.filter.active', 1),
+			'active_tab' => CProfile::get('web.docker.list.filter.active', 1),
 			'refresh_interval' => timeUnitToSeconds(CWebUser::getRefresh())
 		]);
 		$response->setTitle(_('Docker nodes'));

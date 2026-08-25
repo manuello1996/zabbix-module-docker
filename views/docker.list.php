@@ -1,18 +1,18 @@
 <?php declare(strict_types = 0);
 
 $this->addJsFile('class.tagfilteritem.js');
-$this->includeJsFile('monzphere.docker.list.js.php', ['refresh_interval' => $data['refresh_interval']]);
+$this->includeJsFile('docker.list.js.php', ['refresh_interval' => $data['refresh_interval']]);
 
 $makeStatSegment = static function (string $modifier, string $label, string $value, string $unit): CDiv {
 	return (new CDiv([
-		(new CDiv($label))->addClass('mnz-docker-statseg-label'),
+		(new CDiv($label))->addClass('docker-statseg-label'),
 		(new CDiv([
-			(new CSpan($value))->addClass('mnz-docker-card-value'),
-			$unit !== '' ? (new CSpan($unit))->addClass('mnz-docker-card-unit') : null
-		]))->addClass('mnz-docker-statseg-figure')
+			(new CSpan($value))->addClass('docker-card-value'),
+			$unit !== '' ? (new CSpan($unit))->addClass('docker-card-unit') : null
+		]))->addClass('docker-statseg-figure')
 	]))
-		->addClass('mnz-docker-statseg')
-		->addClass('mnz-docker-card-'.$modifier);
+		->addClass('docker-statseg')
+		->addClass('docker-card-'.$modifier);
 };
 
 $html_page = (new CHtmlPage())
@@ -22,17 +22,17 @@ $html_page = (new CHtmlPage())
 $html_page->addItem(
 	(new CDiv([
 		(new CDiv([
-			(new CSpan(_('Nodes')))->addClass('mnz-docker-breadcrumb-current')
+			(new CSpan(_('Nodes')))->addClass('docker-breadcrumb-current')
 		]))
-			->addClass('mnz-docker-breadcrumb')
+			->addClass('docker-breadcrumb')
 			->setAttribute('aria-label', _('Breadcrumb')),
 		(new CDiv([
 			(new CRedirectButton(
 				_('Export images older than 365 days (CSV)'),
-				(new CUrl('zabbix.php'))->setArgument('action', 'monzphere.docker.images.csv')
+				(new CUrl('zabbix.php'))->setArgument('action', 'docker.images.csv')
 			))->addClass(ZBX_STYLE_BTN_ALT)
-		]))->addClass('mnz-docker-topbar-actions')
-	]))->addClass('mnz-docker-topbar')
+		]))->addClass('docker-topbar-actions')
+	]))->addClass('docker-topbar')
 );
 
 $filter_left = (new CFormGrid())
@@ -116,25 +116,25 @@ $filter_right = (new CFormGrid())
 
 $html_page->addItem(
 	(new CFilter())
-		->setResetUrl(new CUrl('zabbix.php?action=monzphere.docker.list'))
-		->setProfile('web.monzphere.docker.list.filter')
+		->setResetUrl(new CUrl('zabbix.php?action=docker.list'))
+		->setProfile('web.docker.list.filter')
 		->setActiveTab($data['active_tab'])
-		->addVar('action', 'monzphere.docker.list')
+		->addVar('action', 'docker.list')
 		->addFilterTab(_('Filter'), [$filter_left, $filter_right])
 );
 
 $html_page->addItem(
 	(new CDiv([
-		(new CTag('h4', true, _('Docker environment overview')))->addClass('mnz-docker-section-title'),
+		(new CTag('h4', true, _('Docker environment overview')))->addClass('docker-section-title'),
 		(new CDiv([
 			$makeStatSegment('nodes', _('Nodes'), (string) $data['totals']['nodes'], ''),
 			$makeStatSegment('total', _('Containers'), (string) $data['totals']['total'], ''),
 			$makeStatSegment('running', _('Running'), (string) $data['totals']['running'], ''),
 			$makeStatSegment('stopped', _('Stopped / Err'), (string) $data['totals']['stopped'], '')
 		]))
-			->addClass('mnz-docker-statstrip')
-			->setId('mnz-docker-list-cards')
-	]))->addClass('mnz-docker-section')
+			->addClass('docker-statstrip')
+			->setId('docker-list-cards')
+	]))->addClass('docker-section')
 );
 
 $no_data_message = _('No Docker nodes found. Link the "Docker by Zabbix agent 2" template to your hosts.');
@@ -151,7 +151,7 @@ elseif ($data['filter']['name'] !== '' || $data['filter']['groupids']
 }
 
 $table = (new CTableInfo())
-	->setId('mnz-docker-nodes-table')
+	->setId('docker-nodes-table')
 	->setHeader([
 		_('Node'),
 		_('Notes'),
@@ -169,35 +169,35 @@ foreach ($data['nodes'] as $node) {
 	$metrics = $node['metrics'];
 
 	$detail_url = (new CUrl('zabbix.php'))
-		->setArgument('action', 'monzphere.docker.view')
+		->setArgument('action', 'docker.view')
 		->setArgument('filter_hostid', [$node['hostid']])
 		->setArgument('filter_set', '1');
 
 	$table->addRow([
 		(new CDiv([
-			(new CSpan())->addClass('mnz-docker-container-icon'),
-			(new CLink($node['name'], $detail_url))->addClass('mnz-docker-name')
-		]))->addClass('mnz-docker-name-cell'),
+			(new CSpan())->addClass('docker-container-icon'),
+			(new CLink($node['name'], $detail_url))->addClass('docker-name')
+		]))->addClass('docker-name-cell'),
 
 		$node['inventory']['notes'] ?? '',
 
 		(new CHostAvailability())->setInterfaces($node['interfaces']),
 
 		(new CLink(
-			(new CSpan('…'))->addClass('mnz-docker-muted'),
+			(new CSpan('…'))->addClass('docker-muted'),
 			$detail_url
 		))
 			->addClass(ZBX_STYLE_PROBLEM_ICON_LINK)
-			->setAttribute('data-mnz-problem-hostid', $node['hostid'])
+			->setAttribute('data-problem-hostid', $node['hostid'])
 			->setAttribute('aria-label', _('Loading problems')),
 
 		$metrics['total'] !== null ? (string) (int) $metrics['total'] : '-',
 
 		(new CSpan($metrics['running'] !== null ? (string) (int) $metrics['running'] : '-'))
-			->addClass((int) $metrics['running'] > 0 ? 'mnz-docker-status-running' : null),
+			->addClass((int) $metrics['running'] > 0 ? 'docker-status-running' : null),
 
 		(new CSpan($metrics['stopped'] !== null ? (string) (int) $metrics['stopped'] : '-'))
-			->addClass((int) $metrics['stopped'] > 0 ? 'mnz-docker-status-stopped' : null),
+			->addClass((int) $metrics['stopped'] > 0 ? 'docker-status-stopped' : null),
 
 		$metrics['paused'] !== null ? (string) (int) $metrics['paused'] : '-',
 
@@ -212,13 +212,13 @@ $html_page
 			(new CTag('h4', true, [
 				_('Docker nodes'),
 				(new CSpan())
-					->setId('mnz-docker-list-refresh-status')
-					->addClass('mnz-docker-refresh-status')
+					->setId('docker-list-refresh-status')
+					->addClass('docker-refresh-status')
 					->setAttribute('aria-live', 'polite')
-			]))->addClass('mnz-docker-section-title'),
+			]))->addClass('docker-section-title'),
 			$table,
 
-			$data['paging']->setId('mnz-docker-list-paging')
-		]))->addClass('mnz-docker-section')
+			$data['paging']->setId('docker-list-paging')
+		]))->addClass('docker-section')
 	)
 	->show();

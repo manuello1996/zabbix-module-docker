@@ -2,7 +2,7 @@
 	'use strict';
 
 	const ACTION = new URL(window.location.href).searchParams.get('action') || '';
-	const DOCKER_ACTION = 'monzphere.docker.view';
+	const DOCKER_ACTION = 'docker.view';
 	const HOST_POPUP_ACTIONS = new Set(['problem.view', 'latest.view']);
 	const docker_hosts = new Set();
 	const checked_hosts = new Set();
@@ -26,7 +26,7 @@
 	function integrationUrl(mode, options = {}) {
 		const url = new Curl('zabbix.php');
 
-		url.setArgument('action', 'monzphere.docker.integration');
+		url.setArgument('action', 'docker.integration');
 		url.setArgument('mode', mode);
 
 		for (const [name, value] of Object.entries(options)) {
@@ -101,13 +101,13 @@
 			return;
 		}
 
-		if (cell.querySelector('a[data-mnz-docker-host-link]') !== null) {
+		if (cell.querySelector('a[data-docker-host-link]') !== null) {
 			return;
 		}
 
 		const link = document.createElement('a');
 
-		link.dataset.mnzDockerHostLink = '1';
+		link.dataset.dockerHostLink = '1';
 		link.href = dockerUrl(hostid);
 		link.textContent = 'Docker';
 		cell.replaceChildren(link);
@@ -239,7 +239,7 @@
 
 	function installHostMenuIntegration() {
 		if (typeof window.getMenuPopupHost !== 'function'
-				|| window.getMenuPopupHost.mnzDockerIntegration === true) {
+				|| window.getMenuPopupHost.dockerIntegration === true) {
 			return;
 		}
 
@@ -269,7 +269,7 @@
 			return sections;
 		};
 
-		replacement.mnzDockerIntegration = true;
+		replacement.dockerIntegration = true;
 		window.getMenuPopupHost = replacement;
 	}
 
@@ -291,7 +291,7 @@
 		const header = document.createElement('tr');
 		const tbody = document.createElement('tbody');
 
-		section.id = 'mnz-docker-search-containers';
+		section.id = 'docker-search-containers';
 		head.className = 'section-head';
 		body.className = 'section-body';
 		title.textContent = 'Docker Containers';
@@ -361,14 +361,14 @@
 		const search = new URL(window.location.href).searchParams.get('search')?.trim() || '';
 
 		if (hosts_section === null || search === ''
-				|| document.getElementById('mnz-docker-search-containers') !== null) {
+				|| document.getElementById('docker-search-containers') !== null) {
 			return;
 		}
 
 		fetch(integrationUrl('search', {search}))
 			.then((response) => response.json())
 			.then((response) => {
-				if ('error' in response || document.getElementById('mnz-docker-search-containers') !== null) {
+				if ('error' in response || document.getElementById('docker-search-containers') !== null) {
 					return;
 				}
 

@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 
-namespace Modules\MonzphereDocker\Actions;
+namespace Modules\MonitorDocker\Actions;
 
 use API;
 use CController;
@@ -9,7 +9,7 @@ use CControllerResponseFatal;
 use CRoleHelper;
 use CSettingsHelper;
 use CWebUser;
-use Modules\MonzphereDocker\Includes\DockerCollector;
+use Modules\MonitorDocker\Includes\DockerCollector;
 
 /**
  * Read-only bridge used by the module's global UI integration.

@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 
-namespace Modules\MonzphereDocker;
+namespace Modules\MonitorDocker;
 
 use APP;
 use CControllerTimeSelectorUpdate;
@@ -9,13 +9,13 @@ use Zabbix\Core\CModule;
 
 class Module extends CModule {
 	public function init(): void {
-		CControllerTimeSelectorUpdate::$profiles[] = 'web.monzphere.docker.filter';
+		CControllerTimeSelectorUpdate::$profiles[] = 'web.docker.filter';
 
 		APP::Component()->get('menu.main')
 			->findOrAdd(_('Monitoring'))
 			->getSubmenu()
 			->insertAfter(_('Latest data'),
-				(new CMenuItem(_('Docker')))->setAction('monzphere.docker.list')
+				(new CMenuItem(_('Docker')))->setAction('docker.list')
 			);
 	}
 }

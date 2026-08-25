@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 
-namespace Modules\MonzphereDocker\Actions;
+namespace Modules\MonitorDocker\Actions;
 
 use API;
 use CController;
@@ -8,7 +8,7 @@ use CControllerResponseData;
 use CControllerResponseFatal;
 use CRoleHelper;
 use CWebUser;
-use Modules\MonzphereDocker\Includes\DockerCollector;
+use Modules\MonitorDocker\Includes\DockerCollector;
 
 class CControllerDockerSparkline extends CController {
 	private const KEY_PREFIXES = [

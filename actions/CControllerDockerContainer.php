@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 
-namespace Modules\MonzphereDocker\Actions;
+namespace Modules\MonitorDocker\Actions;
 
 use API;
 use CController;
@@ -12,8 +12,8 @@ use CTableInfo;
 use CTag;
 use CUrl;
 use CWebUser;
-use Modules\MonzphereDocker\Includes\DockerCollector;
-use Modules\MonzphereDocker\Includes\DockerFormatter;
+use Modules\MonitorDocker\Includes\DockerCollector;
+use Modules\MonitorDocker\Includes\DockerFormatter;
 
 class CControllerDockerContainer extends CController {
 	private const FIELDS = [
@@ -147,7 +147,7 @@ class CControllerDockerContainer extends CController {
 			$charts['memory'],
 			$this->makeMountsSection($name, $datasets['docker.containers.mounts']),
 			$this->makeLabelsSection($name, $datasets['docker.containers.labels'])
-		]))->addClass('mnz-docker-modal-content');
+		]))->addClass('docker-modal-content');
 
 		$description = trim((string) ($this->rawValue($by_prefix, 'docker.container.description') ?? ''));
 
@@ -172,11 +172,11 @@ class CControllerDockerContainer extends CController {
 	}
 
 	private function countValue(array $by_prefix, string $prefix): CSpan {
-		$value = (new CSpan($this->formattedValue($by_prefix, $prefix)))->addClass('mnz-docker-stat-value');
+		$value = (new CSpan($this->formattedValue($by_prefix, $prefix)))->addClass('docker-stat-value');
 		$raw = $this->rawValue($by_prefix, $prefix);
 
 		if ($raw !== null && (float) $raw != 0) {
-			$value->addClass('mnz-docker-value-bad');
+			$value->addClass('docker-value-bad');
 		}
 
 		return $value;
@@ -186,22 +186,22 @@ class CControllerDockerContainer extends CController {
 		$health_raw = $this->rawValue($by_prefix, 'docker.container_info.state.health');
 
 		$health = (new CSpan($this->formattedValue($by_prefix, 'docker.container_info.state.health')))
-			->addClass('mnz-docker-stat-value');
+			->addClass('docker-stat-value');
 
 		if ($health_raw !== null && (int) $health_raw == 3) {
-			$health->addClass('mnz-docker-chip-ok');
+			$health->addClass('docker-chip-ok');
 		}
 		elseif ($health_raw !== null && (int) $health_raw == 2) {
-			$health->addClass('mnz-docker-value-bad');
+			$health->addClass('docker-value-bad');
 		}
 
 		$image = $this->formattedValue($by_prefix, 'docker.container_info.image', false);
 
 		$chip = static function (string $label, $value): CDiv {
 			return (new CDiv([
-				(new CDiv($label))->addClass('mnz-docker-chip-label'),
-				(new CDiv($value))->addClass('mnz-docker-chip-body')
-			]))->addClass('mnz-docker-idchip');
+				(new CDiv($label))->addClass('docker-chip-label'),
+				(new CDiv($value))->addClass('docker-chip-body')
+			]))->addClass('docker-idchip');
 		};
 
 		return (new CDiv([
@@ -210,9 +210,9 @@ class CControllerDockerContainer extends CController {
 			$chip(_('Restarts'), $this->formattedValue($by_prefix, 'docker.container_info.restart_count')),
 			$chip(_('PIDs'), $this->formattedValue($by_prefix, 'docker.container_stats.pids_stats.current')),
 			$chip(_('Image'), $image)
-				->addClass('mnz-docker-idchip-image')
+				->addClass('docker-idchip-image')
 				->setTitle($image)
-		]))->addClass('mnz-docker-idbar');
+		]))->addClass('docker-idbar');
 	}
 
 	private function storedContainerDatasets(string $hostid, array $keys): array {
@@ -259,12 +259,12 @@ class CControllerDockerContainer extends CController {
 	private function makeNetworkSection(array $by_prefix, string $name, ?array $ports_dataset): CDiv {
 		$raw = $this->rawValue($by_prefix, 'docker.container_info.networks');
 		$networks = $raw !== null ? json_decode($raw, true) : null;
-		$body = (new CDiv())->addClass('mnz-docker-topo')->addClass('mnz-docker-modal-topo');
+		$body = (new CDiv())->addClass('docker-topo')->addClass('docker-modal-topo');
 
 		if (!is_array($networks) || !$networks) {
 			$body->addItem(
 				(new CDiv(_('No network information collected for this container.')))
-					->addClass('mnz-docker-muted')
+					->addClass('docker-muted')
 			);
 		}
 		else {
@@ -302,11 +302,11 @@ class CControllerDockerContainer extends CController {
 		}
 
 		return (new CDiv([
-			(new CTag('h5', true, _('Network information')))->addClass('mnz-docker-cell-title'),
+			(new CTag('h5', true, _('Network information')))->addClass('docker-cell-title'),
 			$body
 		]))
-			->addClass('mnz-docker-cell')
-			->addClass('mnz-docker-modal-network-section');
+			->addClass('docker-cell')
+			->addClass('docker-modal-network-section');
 	}
 
 	private function makeMountsSection(string $name, ?array $mounts_dataset): CDiv {
@@ -338,31 +338,31 @@ class CControllerDockerContainer extends CController {
 				(string) ($mount['Type'] ?? '') !== '' ? (string) $mount['Type'] : '-',
 				(string) ($mount['Name'] ?? '') !== '' ? (string) $mount['Name'] : '-',
 				(new CSpan((string) ($mount['Source'] ?? '') !== '' ? (string) $mount['Source'] : '-'))
-					->addClass('mnz-docker-image-id')
-					->addClass('mnz-docker-mount-path')
+					->addClass('docker-image-id')
+					->addClass('docker-mount-path')
 					->setTitle((string) ($mount['Source'] ?? '')),
 				(new CSpan((string) ($mount['Destination'] ?? '') !== ''
 					? (string) $mount['Destination']
 					: '-'
 				))
-					->addClass('mnz-docker-image-id')
-					->addClass('mnz-docker-mount-path')
+					->addClass('docker-image-id')
+					->addClass('docker-mount-path')
 					->setTitle((string) ($mount['Destination'] ?? '')),
 				(string) ($mount['Driver'] ?? '') !== '' ? (string) $mount['Driver'] : '-',
 				(string) ($mount['Mode'] ?? '') !== '' ? (string) $mount['Mode'] : '-',
 				(new CSpan($read_write ? _('Read-write') : _('Read-only')))
-					->addClass($read_write ? 'mnz-docker-status-running' : 'mnz-docker-muted'),
+					->addClass($read_write ? 'docker-status-running' : 'docker-muted'),
 				(string) ($mount['Propagation'] ?? '') !== '' ? (string) $mount['Propagation'] : '-'
 			]);
 		}
 
 		return (new CDiv([
-			(new CTag('h5', true, _('Mounts')))->addClass('mnz-docker-cell-title'),
+			(new CTag('h5', true, _('Mounts')))->addClass('docker-cell-title'),
 			$table
 		]))
-			->addClass('mnz-docker-cell')
-			->addClass('mnz-docker-cell-wide')
-			->addClass('mnz-docker-modal-mounts');
+			->addClass('docker-cell')
+			->addClass('docker-cell-wide')
+			->addClass('docker-modal-mounts');
 	}
 
 	private function makeLabelsSection(string $name, ?array $labels_dataset): CDiv {
@@ -385,21 +385,21 @@ class CControllerDockerContainer extends CController {
 
 			$table->addRow([
 				(new CSpan((string) $key))
-					->addClass('mnz-docker-label-key')
+					->addClass('docker-label-key')
 					->setTitle((string) $key),
 				(new CSpan($value !== '' ? $value : '-'))
-					->addClass('mnz-docker-label-value')
+					->addClass('docker-label-value')
 					->setTitle($value)
 			]);
 		}
 
 		return (new CDiv([
-			(new CTag('h5', true, _('Labels')))->addClass('mnz-docker-cell-title'),
+			(new CTag('h5', true, _('Labels')))->addClass('docker-cell-title'),
 			$table
 		]))
-			->addClass('mnz-docker-cell')
-			->addClass('mnz-docker-cell-wide')
-			->addClass('mnz-docker-modal-labels');
+			->addClass('docker-cell')
+			->addClass('docker-cell-wide')
+			->addClass('docker-modal-labels');
 	}
 
 	private function makeChartCells(array $by_prefix): array {
@@ -414,40 +414,40 @@ class CControllerDockerContainer extends CController {
 			['cpu', _('CPU usage'), [
 				$itemid('docker.container_stats.cpu_pct_usage')
 			], [
-				(new CSpan(_('Throttled').': '))->addClass('mnz-docker-stat-label'),
+				(new CSpan(_('Throttled').': '))->addClass('docker-stat-label'),
 				$this->countValue($by_prefix, 'docker.container_stats.cpu_usage.throttled_periods'),
 				' / ',
 				(new CSpan($this->formattedValue($by_prefix, 'docker.container_stats.cpu_usage.throttled_time')))
-					->addClass('mnz-docker-stat-value')
+					->addClass('docker-stat-value')
 			], 0, 220],
 			['memory', _('Memory usage'), [
 				$itemid('docker.container_stats.memory.usage_total')
 			], [
-				(new CSpan())->addClass('mnz-docker-series-dot')->addClass('mnz-docker-series-dot-1'),
-				(new CSpan(_('Used').' '))->addClass('mnz-docker-stat-label'),
+				(new CSpan())->addClass('docker-series-dot')->addClass('docker-series-dot-1'),
+				(new CSpan(_('Used').' '))->addClass('docker-stat-label'),
 				(new CSpan($this->formattedValue($by_prefix, 'docker.container_stats.memory.usage_total')))
-					->addClass('mnz-docker-stat-value'),
+					->addClass('docker-stat-value'),
 				' — ',
-				(new CSpan(_('Max').' '))->addClass('mnz-docker-stat-label'),
+				(new CSpan(_('Max').' '))->addClass('docker-stat-label'),
 				(new CSpan($this->formattedValue($by_prefix, 'docker.container_stats.memory.max_usage')))
-					->addClass('mnz-docker-stat-value')
+					->addClass('docker-stat-value')
 			], 0, 220],
 			['network', _('Network traffic'), [
 				$itemid('docker.networks.rx_bytes'),
 				$itemid('docker.networks.tx_bytes')
 			], [
-				(new CSpan())->addClass('mnz-docker-series-dot')->addClass('mnz-docker-series-dot-1'),
-				(new CSpan('RX'))->addClass('mnz-docker-stat-label'),
+				(new CSpan())->addClass('docker-series-dot')->addClass('docker-series-dot-1'),
+				(new CSpan('RX'))->addClass('docker-stat-label'),
 				' ',
-				(new CSpan())->addClass('mnz-docker-series-dot')->addClass('mnz-docker-series-dot-2'),
-				(new CSpan('TX'))->addClass('mnz-docker-stat-label'),
+				(new CSpan())->addClass('docker-series-dot')->addClass('docker-series-dot-2'),
+				(new CSpan('TX'))->addClass('docker-stat-label'),
 				' — ',
-				(new CSpan(_('Errors').' '))->addClass('mnz-docker-stat-label'),
+				(new CSpan(_('Errors').' '))->addClass('docker-stat-label'),
 				$this->countValue($by_prefix, 'docker.networks.rx_errors'),
 				'/',
 				$this->countValue($by_prefix, 'docker.networks.tx_errors'),
 				' — ',
-				(new CSpan(_('Dropped').' '))->addClass('mnz-docker-stat-label'),
+				(new CSpan(_('Dropped').' '))->addClass('docker-stat-label'),
 				$this->countValue($by_prefix, 'docker.networks.rx_dropped'),
 				'/',
 				$this->countValue($by_prefix, 'docker.networks.tx_dropped')
@@ -476,22 +476,22 @@ class CControllerDockerContainer extends CController {
 				$body = (new CTag('img', false))
 					->setAttribute('alt', $title)
 					->setAttribute('loading', 'lazy')
-					->addClass('mnz-docker-chart-img')
-					->setAttribute('data-mnz-chart', $url->getUrl());
+					->addClass('docker-chart-img')
+					->setAttribute('data-chart', $url->getUrl());
 			}
 			else {
-				$body = (new CDiv(_('No history data for this metric')))->addClass('mnz-docker-chart-empty');
+				$body = (new CDiv(_('No history data for this metric')))->addClass('docker-chart-empty');
 			}
 
 			$cell = (new CDiv([
 				(new CDiv([
-					(new CTag('h5', true, $title))->addClass('mnz-docker-cell-title'),
-					(new CDiv($stats))->addClass('mnz-docker-cell-stats')
-				]))->addClass('mnz-docker-cell-head'),
+					(new CTag('h5', true, $title))->addClass('docker-cell-title'),
+					(new CDiv($stats))->addClass('docker-cell-stats')
+				]))->addClass('docker-cell-head'),
 				$body
 			]))
-				->addClass('mnz-docker-cell')
-				->addClass('mnz-docker-cell-chart');
+				->addClass('docker-cell')
+				->addClass('docker-cell-chart');
 
 			$result[$key] = $cell;
 		}

@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 
-namespace Modules\MonzphereDocker\Actions;
+namespace Modules\MonitorDocker\Actions;
 
 use API;
 use CController;

@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 
-namespace Modules\MonzphereDocker\Actions;
+namespace Modules\MonitorDocker\Actions;
 
 use API;
 use CController;
@@ -12,11 +12,11 @@ use CRoleHelper;
 use CSettingsHelper;
 use CUrl;
 use CWebUser;
-use Modules\MonzphereDocker\Includes\DockerCollector;
+use Modules\MonitorDocker\Includes\DockerCollector;
 
 class CControllerDockerView extends CController {
-	public const PROFILE_GROUPIDS = 'web.monzphere.docker.filter.groupids';
-	public const PROFILE_HOSTID = 'web.monzphere.docker.filter.hostid';
+	public const PROFILE_GROUPIDS = 'web.docker.filter.groupids';
+	public const PROFILE_HOSTID = 'web.docker.filter.hostid';
 
 	protected function init(): void {
 		$this->disableCsrfValidation();
@@ -128,16 +128,16 @@ class CControllerDockerView extends CController {
 		}
 
 		$timeselector_options = [
-			'profileIdx' => 'web.monzphere.docker.filter',
+			'profileIdx' => 'web.docker.filter',
 			'profileIdx2' => 0,
 			'from' => $this->hasInput('from')
 				? $this->getInput('from')
-				: CProfile::get('web.monzphere.docker.filter.from',
+				: CProfile::get('web.docker.filter.from',
 					'now-'.CSettingsHelper::get(CSettingsHelper::PERIOD_DEFAULT)
 				),
 			'to' => $this->hasInput('to')
 				? $this->getInput('to')
-				: CProfile::get('web.monzphere.docker.filter.to', 'now')
+				: CProfile::get('web.docker.filter.to', 'now')
 		];
 
 		updateTimeSelectorPeriod($timeselector_options);
@@ -150,7 +150,7 @@ class CControllerDockerView extends CController {
 			],
 			'timeline' => getTimeSelectorPeriod($timeselector_options),
 
-			'active_tab' => CProfile::get('web.monzphere.docker.filter.active', 0),
+			'active_tab' => CProfile::get('web.docker.filter.active', 0),
 
 			'hosts' => array_values($hosts),
 			'host' => $host,
@@ -179,7 +179,7 @@ class CControllerDockerView extends CController {
 			$data['containers_total'] = count($data['containers']);
 
 			$data['paging'] = CPagerHelper::paginate((int) $this->getInput('page', 1), $data['containers'],
-				ZBX_SORT_UP, (new CUrl('zabbix.php'))->setArgument('action', 'monzphere.docker.view')
+				ZBX_SORT_UP, (new CUrl('zabbix.php'))->setArgument('action', 'docker.view')
 			);
 		}
 

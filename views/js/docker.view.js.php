@@ -1,7 +1,7 @@
 <?php declare(strict_types = 0);
 ?>
 <script>
-window.monzphere_docker = new class {
+window.monitor_docker = new class {
 	init({hostid}) {
 		this._hostid = hostid;
 		this._panel = null;
@@ -42,9 +42,9 @@ window.monzphere_docker = new class {
 		jQuery.subscribe('timeselector.rangeupdate', () => {
 			this._tab_cache.delete('graphs');
 
-			const active = document.querySelector('.mnz-docker-tab-active');
+			const active = document.querySelector('.docker-tab-active');
 
-			if (this._panel !== null && active !== null && active.dataset.mnzTab === 'graphs') {
+			if (this._panel !== null && active !== null && active.dataset.tab === 'graphs') {
 				this._loadTab('graphs');
 			}
 		});
@@ -73,7 +73,7 @@ window.monzphere_docker = new class {
 	}
 
 	_initSparklines() {
-		const holders = document.querySelectorAll('.mnz-docker-sparkline[data-mnz-spark-itemids]');
+		const holders = document.querySelectorAll('.docker-sparkline[data-spark-itemids]');
 
 		if (holders.length === 0) {
 			return;
@@ -97,15 +97,15 @@ window.monzphere_docker = new class {
 	}
 
 	_queueSparkline(holder) {
-		if (holder.dataset.mnzSparkLoaded === '1') {
+		if (holder.dataset.sparkLoaded === '1') {
 			return;
 		}
 
 		this._sparkline_observer?.unobserve(holder);
-		holder.dataset.mnzSparkLoaded = '1';
+		holder.dataset.sparkLoaded = '1';
 
 		const itemids = this._sparklineItemids(holder);
-		const kind = holder.dataset.mnzSparkKind ?? 'up';
+		const kind = holder.dataset.sparkKind ?? 'up';
 
 		if (itemids.length === 0 || kind === 'down' || kind === 'off') {
 			this._renderSparkline(holder, [], kind);
@@ -119,7 +119,7 @@ window.monzphere_docker = new class {
 	}
 
 	_sparklineItemids(holder) {
-		return (holder.dataset.mnzSparkItemids ?? '')
+		return (holder.dataset.sparkItemids ?? '')
 			.split(',')
 			.filter((itemid) => /^\d+$/.test(itemid));
 	}
@@ -144,7 +144,7 @@ window.monzphere_docker = new class {
 
 		const url = new Curl('zabbix.php');
 
-		url.setArgument('action', 'monzphere.docker.sparkline');
+		url.setArgument('action', 'docker.sparkline');
 		url.setArgument('hostid', this._hostid);
 		url.setArgument('itemids', itemids);
 
@@ -165,7 +165,7 @@ window.monzphere_docker = new class {
 			})
 			.catch(() => {
 				for (const holder of holders) {
-					this._renderSparkline(holder, [], holder.dataset.mnzSparkKind ?? 'up');
+					this._renderSparkline(holder, [], holder.dataset.sparkKind ?? 'up');
 				}
 			});
 	}
@@ -173,13 +173,13 @@ window.monzphere_docker = new class {
 	_renderSparklineHolders(holders) {
 		for (const holder of holders) {
 			const itemids = this._sparklineItemids(holder);
-			const series = holder.dataset.mnzSparkMode === 'sum'
+			const series = holder.dataset.sparkMode === 'sum'
 				? this._sumSparklineSeries(
 					itemids.map((itemid) => this._sparkline_history.get(itemid) ?? [])
 				)
 				: this._sparkline_history.get(itemids[0]) ?? [];
 
-			this._renderSparkline(holder, series, holder.dataset.mnzSparkKind ?? 'up');
+			this._renderSparkline(holder, series, holder.dataset.sparkKind ?? 'up');
 		}
 	}
 
@@ -207,7 +207,7 @@ window.monzphere_docker = new class {
 
 		svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
 		svg.setAttribute('preserveAspectRatio', 'none');
-		svg.classList.add('mnz-docker-spark-svg');
+		svg.classList.add('docker-spark-svg');
 
 		if (history.length < 2 || kind === 'down' || kind === 'off') {
 			const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -217,7 +217,7 @@ window.monzphere_docker = new class {
 			line.setAttribute('y1', String(y));
 			line.setAttribute('x2', String(width));
 			line.setAttribute('y2', String(y));
-			line.classList.add('mnz-docker-spark-flat');
+			line.classList.add('docker-spark-flat');
 			svg.append(line);
 		}
 		else {
@@ -243,14 +243,14 @@ window.monzphere_docker = new class {
 			const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
 
 			polygon.setAttribute('points', `0,${height - 1} ${points.join(' ')} ${width},${height - 1}`);
-			polygon.classList.add('mnz-docker-spark-fill');
+			polygon.classList.add('docker-spark-fill');
 			svg.append(polygon);
 
 			const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
 
 			polyline.setAttribute('points', points.join(' '));
 			polyline.setAttribute('fill', 'none');
-			polyline.classList.add('mnz-docker-spark-line');
+			polyline.classList.add('docker-spark-line');
 			svg.append(polyline);
 		}
 
@@ -309,18 +309,18 @@ window.monzphere_docker = new class {
 	}
 
 	_initTopbar() {
-		document.getElementById('mnz-docker-btn-filter')?.addEventListener('click', (e) => {
-			const filters = document.getElementById('mnz-docker-filters');
+		document.getElementById('docker-btn-filter')?.addEventListener('click', (e) => {
+			const filters = document.getElementById('docker-filters');
 
 			if (filters !== null) {
 				filters.hidden = !filters.hidden;
-				e.currentTarget.classList.toggle('mnz-docker-iconbtn-active', !filters.hidden);
+				e.currentTarget.classList.toggle('docker-iconbtn-active', !filters.hidden);
 			}
 		});
 	}
 
 	_initHostFilter() {
-		const form = document.forms.mnz_docker_filterbar;
+		const form = document.forms.docker_filterbar;
 		const submit = form?.querySelector('button[name="filter_set"]');
 
 		if (form === undefined || form === null || submit === null) {
@@ -356,35 +356,35 @@ window.monzphere_docker = new class {
 	}
 
 	_hydrateCharts(root, force = false) {
-		for (const img of root.querySelectorAll('img[data-mnz-chart]')) {
+		for (const img of root.querySelectorAll('img[data-chart]')) {
 			if (img.closest('[hidden]') !== null) {
 				continue;
 			}
 
-			const holder = img.closest('.mnz-docker-cell') ?? img.parentElement;
+			const holder = img.closest('.docker-cell') ?? img.parentElement;
 			const style = getComputedStyle(holder);
-			const shift = parseInt(img.dataset.mnzShift ?? '0', 10);
+			const shift = parseInt(img.dataset.shift ?? '0', 10);
 			const width = Math.max(400, Math.floor(holder.clientWidth
 				- parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)) - shift);
 
-			if (!force && img.dataset.mnzChartWidth === String(width)) {
+			if (!force && img.dataset.chartWidth === String(width)) {
 				continue;
 			}
 
-			img.dataset.mnzChartWidth = String(width);
-			img.src = img.dataset.mnzChart
-				+ (img.dataset.mnzChart.includes('?') ? '&' : '?')
+			img.dataset.chartWidth = String(width);
+			img.src = img.dataset.chart
+				+ (img.dataset.chart.includes('?') ? '&' : '?')
 				+ 'width=' + width;
 		}
 	}
 
 	_filterGraphs(query) {
-		for (const group of this._panel.querySelectorAll('.mnz-docker-graphgroup')) {
-			const group_match = query !== '' && (group.dataset.mnzGraphgroup ?? '').includes(query);
+		for (const group of this._panel.querySelectorAll('.docker-graphgroup')) {
+			const group_match = query !== '' && (group.dataset.graphgroup ?? '').includes(query);
 			let visible = 0;
 
-			for (const item of group.querySelectorAll('.mnz-docker-graph')) {
-				const show = query === '' || group_match || (item.dataset.mnzGraph ?? '').includes(query);
+			for (const item of group.querySelectorAll('.docker-graph')) {
+				const show = query === '' || group_match || (item.dataset.graph ?? '').includes(query);
 
 				item.hidden = !show;
 				visible += show ? 1 : 0;
@@ -401,11 +401,11 @@ window.monzphere_docker = new class {
 	_filterImages(root) {
 		const queries = {};
 
-		for (const input of root.querySelectorAll('[data-mnz-image-filter]')) {
-			queries[input.dataset.mnzImageFilter] = input.value.trim().toLowerCase();
+		for (const input of root.querySelectorAll('[data-image-filter]')) {
+			queries[input.dataset.imageFilter] = input.value.trim().toLowerCase();
 		}
 
-		const rows = [...root.querySelectorAll('#mnz-docker-images-table tbody tr[data-mnz-image-name]')];
+		const rows = [...root.querySelectorAll('#docker-images-table tbody tr[data-image-name]')];
 		let visible = 0;
 
 		for (const row of rows) {
@@ -414,7 +414,7 @@ window.monzphere_docker = new class {
 					return true;
 				}
 
-				const property = 'mnzImage' + field.charAt(0).toUpperCase() + field.slice(1);
+				const property = 'image' + field.charAt(0).toUpperCase() + field.slice(1);
 
 				return (row.dataset[property] ?? '').includes(query);
 			});
@@ -423,7 +423,7 @@ window.monzphere_docker = new class {
 			visible += show ? 1 : 0;
 		}
 
-		const count = root.querySelector('#mnz-docker-images-filter-count');
+		const count = root.querySelector('#docker-images-filter-count');
 
 		if (count !== null) {
 			const images_label = <?= json_encode(_('images')) ?>;
@@ -436,7 +436,7 @@ window.monzphere_docker = new class {
 	}
 
 	_sortImages(root, field) {
-		const tbody = root.querySelector('#mnz-docker-images-table tbody');
+		const tbody = root.querySelector('#docker-images-table tbody');
 
 		if (tbody === null) {
 			return;
@@ -450,8 +450,8 @@ window.monzphere_docker = new class {
 		}
 
 		const {dir} = this._image_sort;
-		const property = 'mnzImageSort' + field.charAt(0).toUpperCase() + field.slice(1);
-		const rows = [...tbody.querySelectorAll('tr[data-mnz-image-name]')];
+		const property = 'imageSort' + field.charAt(0).toUpperCase() + field.slice(1);
+		const rows = [...tbody.querySelectorAll('tr[data-image-name]')];
 
 		rows.sort((a, b) => {
 			const a_value = Number(a.dataset[property]);
@@ -461,13 +461,13 @@ window.monzphere_docker = new class {
 
 			return difference !== 0
 				? dir * difference
-				: (a.dataset.mnzImageName ?? '').localeCompare(b.dataset.mnzImageName ?? '');
+				: (a.dataset.imageName ?? '').localeCompare(b.dataset.imageName ?? '');
 		});
 		tbody.append(...rows);
 
-		for (const header of root.querySelectorAll('[data-mnz-image-sort]')) {
-			const active = header.dataset.mnzImageSort === field;
-			const arrow = header.querySelector('.mnz-docker-sort-arrow');
+		for (const header of root.querySelectorAll('[data-image-sort]')) {
+			const active = header.dataset.imageSort === field;
+			const arrow = header.querySelector('.docker-sort-arrow');
 			const th = header.closest('th');
 
 			arrow?.replaceChildren();
@@ -489,15 +489,15 @@ window.monzphere_docker = new class {
 	}
 
 	_expandGraphGroup(group, expand) {
-		const head = group.querySelector('.mnz-docker-graphgroup-head');
-		const body = group.querySelector('.mnz-docker-graphgroup-body');
+		const head = group.querySelector('.docker-graphgroup-head');
+		const body = group.querySelector('.docker-graphgroup-body');
 
 		if (head === null || body === null || body.hidden === !expand) {
 			return;
 		}
 
 		body.hidden = !expand;
-		head.classList.toggle('mnz-docker-graphgroup-open', expand);
+		head.classList.toggle('docker-graphgroup-open', expand);
 		head.setAttribute('aria-expanded', expand ? 'true' : 'false');
 
 		if (expand) {
@@ -506,8 +506,8 @@ window.monzphere_docker = new class {
 	}
 
 	_initTabs() {
-		const content = document.getElementById('mnz-docker-content');
-		const panel = document.getElementById('mnz-docker-panel');
+		const content = document.getElementById('docker-content');
+		const panel = document.getElementById('docker-panel');
 
 		if (content === null || panel === null) {
 			return;
@@ -517,14 +517,14 @@ window.monzphere_docker = new class {
 		this._panel = panel;
 
 		panel.addEventListener('input', (e) => {
-			if (e.target.id === 'mnz-docker-graphs-search') {
+			if (e.target.id === 'docker-graphs-search') {
 				clearTimeout(this._graphs_search_debounce);
 
 				this._graphs_search_debounce = setTimeout(() => {
 					this._filterGraphs(e.target.value.trim().toLowerCase());
 				}, 250);
 			}
-			else if (e.target.matches('[data-mnz-image-filter]')) {
+			else if (e.target.matches('[data-image-filter]')) {
 				clearTimeout(this._image_filter_debounce);
 
 				this._image_filter_debounce = setTimeout(() => {
@@ -534,31 +534,31 @@ window.monzphere_docker = new class {
 		});
 
 		panel.addEventListener('click', (e) => {
-			if (e.target.closest('.mnz-docker-topo-dns-link') !== null) {
+			if (e.target.closest('.docker-topo-dns-link') !== null) {
 				return;
 			}
 
-			const image_sort = e.target.closest('[data-mnz-image-sort]');
+			const image_sort = e.target.closest('[data-image-sort]');
 
 			if (image_sort !== null && panel.contains(image_sort)) {
-				this._sortImages(panel, image_sort.dataset.mnzImageSort);
+				this._sortImages(panel, image_sort.dataset.imageSort);
 
 				return;
 			}
 
-			const topo_node = e.target.closest('[data-mnz-container]');
+			const topo_node = e.target.closest('[data-container]');
 
 			if (topo_node !== null && panel.contains(topo_node)) {
-				this._openContainerModal(topo_node.dataset.mnzContainer, topo_node);
+				this._openContainerModal(topo_node.dataset.container, topo_node);
 
 				return;
 			}
 
-			const head = e.target.closest('.mnz-docker-graphgroup-head');
+			const head = e.target.closest('.docker-graphgroup-head');
 
 			if (head !== null && panel.contains(head)) {
-				const group = head.closest('.mnz-docker-graphgroup');
-				const body = group.querySelector('.mnz-docker-graphgroup-body');
+				const group = head.closest('.docker-graphgroup');
+				const body = group.querySelector('.docker-graphgroup-body');
 
 				this._expandGraphGroup(group, body.hidden);
 
@@ -573,13 +573,13 @@ window.monzphere_docker = new class {
 
 			e.preventDefault();
 
-			const active = document.querySelector('.mnz-docker-tab-active');
+			const active = document.querySelector('.docker-tab-active');
 
-			if (active === null || active.dataset.mnzTab === '') {
+			if (active === null || active.dataset.tab === '') {
 				return;
 			}
 
-			const key = active.dataset.mnzTab;
+			const key = active.dataset.tab;
 			const page_url = new URL(page_link.href, location.origin);
 			const page = page_url.searchParams.get('page') ?? '1';
 
@@ -599,27 +599,27 @@ window.monzphere_docker = new class {
 		});
 
 		panel.addEventListener('keydown', (e) => {
-			const image_sort = e.target.closest('[data-mnz-image-sort]');
+			const image_sort = e.target.closest('[data-image-sort]');
 
 			if (image_sort !== null && panel.contains(image_sort) && (e.key === 'Enter' || e.key === ' ')) {
 				e.preventDefault();
-				this._sortImages(panel, image_sort.dataset.mnzImageSort);
+				this._sortImages(panel, image_sort.dataset.imageSort);
 			}
 		});
 
-		for (const tab of document.querySelectorAll('.mnz-docker-tab[data-mnz-tab]')) {
+		for (const tab of document.querySelectorAll('.docker-tab[data-tab]')) {
 			tab.addEventListener('click', () => {
-				document.querySelectorAll('.mnz-docker-tab').forEach((node) => {
-					node.classList.remove('mnz-docker-tab-active');
+				document.querySelectorAll('.docker-tab').forEach((node) => {
+					node.classList.remove('docker-tab-active');
 					node.setAttribute('aria-selected', 'false');
 				});
 
-				tab.classList.add('mnz-docker-tab-active');
+				tab.classList.add('docker-tab-active');
 				tab.setAttribute('aria-selected', 'true');
 
-				const key = tab.dataset.mnzTab;
+				const key = tab.dataset.tab;
 
-				const timefilter = document.getElementById('mnz-docker-timefilter');
+				const timefilter = document.getElementById('docker-timefilter');
 
 				if (timefilter !== null) {
 					timefilter.hidden = key !== 'graphs';
@@ -631,7 +631,7 @@ window.monzphere_docker = new class {
 
 					const url = new Curl('zabbix.php');
 
-					url.setArgument('action', 'monzphere.docker.tab');
+					url.setArgument('action', 'docker.tab');
 					url.setArgument('hostid', this._hostid);
 					url.setArgument('tab', 'docker');
 
@@ -649,9 +649,9 @@ window.monzphere_docker = new class {
 	}
 
 	_isActiveTab(key) {
-		const active = document.querySelector('.mnz-docker-tab-active');
+		const active = document.querySelector('.docker-tab-active');
 
-		return active !== null && active.dataset.mnzTab === key;
+		return active !== null && active.dataset.tab === key;
 	}
 
 	_loadTab(key, silent = false) {
@@ -659,13 +659,13 @@ window.monzphere_docker = new class {
 
 		if (!this._tab_cache.has(key)) {
 			if (!silent) {
-				panel.innerHTML = '<div class="mnz-docker-loading">'
+				panel.innerHTML = '<div class="docker-loading">'
 					+ <?= json_encode(_('Loading...')) ?> + '</div>';
 			}
 
 			const url = new Curl('zabbix.php');
 
-			url.setArgument('action', 'monzphere.docker.tab');
+			url.setArgument('action', 'docker.tab');
 			url.setArgument('hostid', this._hostid);
 			url.setArgument('tab', key);
 
@@ -713,7 +713,7 @@ window.monzphere_docker = new class {
 	_showError(target, retry_fn) {
 		const message = document.createElement('div');
 
-		message.className = 'mnz-docker-loading';
+		message.className = 'docker-loading';
 		message.append(<?= json_encode(_('Failed to load data.')) ?> + ' ');
 
 		const retry = document.createElement('a');
@@ -730,7 +730,7 @@ window.monzphere_docker = new class {
 	}
 
 	_initTableControls() {
-		const search = document.getElementById('mnz-docker-search');
+		const search = document.getElementById('docker-search');
 
 		if (search !== null) {
 			search.addEventListener('input', () => {
@@ -744,25 +744,25 @@ window.monzphere_docker = new class {
 			});
 		}
 
-		document.getElementById('mnz-docker-status')?.addEventListener('change', (e) => {
+		document.getElementById('docker-status')?.addEventListener('change', (e) => {
 			this._table_state.status = e.target.value;
 			this._table_state.page = 1;
 			this._applyTableState();
 		});
 
-		document.getElementById('mnz-docker-pager-prev')?.addEventListener('click', () => {
+		document.getElementById('docker-pager-prev')?.addEventListener('click', () => {
 			this._table_state.page = Math.max(1, this._table_state.page - 1);
 			this._applyTableState();
 		});
 
-		document.getElementById('mnz-docker-pager-next')?.addEventListener('click', () => {
+		document.getElementById('docker-pager-next')?.addEventListener('click', () => {
 			this._table_state.page++;
 			this._applyTableState();
 		});
 
-		for (const header of document.querySelectorAll('.mnz-docker-sort')) {
+		for (const header of document.querySelectorAll('.docker-sort')) {
 			const toggle = () => {
-				const key = header.dataset.mnzSort;
+				const key = header.dataset.sort;
 
 				if (this._table_state.sort === key) {
 					this._table_state.dir = -this._table_state.dir;
@@ -787,7 +787,7 @@ window.monzphere_docker = new class {
 	}
 
 	_applyTableState() {
-		const table = document.getElementById('mnz-docker-table');
+		const table = document.getElementById('docker-table');
 
 		if (table === null) {
 			return;
@@ -795,15 +795,15 @@ window.monzphere_docker = new class {
 
 		const tbody = table.querySelector('tbody');
 
-		const rows = [...tbody.querySelectorAll('tr')].filter((row) => row.dataset.mnzName !== undefined);
+		const rows = [...tbody.querySelectorAll('tr')].filter((row) => row.dataset.name !== undefined);
 
 		const counts = {all: rows.length, running: 0, stopped: 0};
 
 		for (const row of rows) {
-			counts[row.dataset.mnzStatus] = (counts[row.dataset.mnzStatus] ?? 0) + 1;
+			counts[row.dataset.status] = (counts[row.dataset.status] ?? 0) + 1;
 		}
 
-		const status_select = document.getElementById('mnz-docker-status');
+		const status_select = document.getElementById('docker-status');
 
 		if (status_select !== null) {
 			for (const option of status_select.options) {
@@ -820,10 +820,10 @@ window.monzphere_docker = new class {
 		const {search, status, sort, dir} = this._table_state;
 
 		if (sort !== null) {
-			const dataset_key = 'mnz' + sort.charAt(0).toUpperCase() + sort.slice(1);
+			const dataset_key = sort;
 
 			const sorted = [...rows].sort((a, b) => sort === 'name'
-				? dir * a.dataset.mnzName.localeCompare(b.dataset.mnzName)
+				? dir * a.dataset.name.localeCompare(b.dataset.name)
 				: dir * ((parseFloat(a.dataset[dataset_key]) || 0) - (parseFloat(b.dataset[dataset_key]) || 0))
 			);
 
@@ -834,9 +834,9 @@ window.monzphere_docker = new class {
 
 		const filtered = rows.filter((row) =>
 			(search === ''
-				|| row.dataset.mnzName.includes(search)
-				|| (row.dataset.mnzNote ?? '').includes(search))
-			&& (status === 'all' || row.dataset.mnzStatus === status)
+				|| row.dataset.name.includes(search)
+				|| (row.dataset.note ?? '').includes(search))
+			&& (status === 'all' || row.dataset.status === status)
 		);
 
 		const pages = Math.max(1, Math.ceil(filtered.length / this._page_size));
@@ -850,7 +850,7 @@ window.monzphere_docker = new class {
 			row.hidden = !page_rows.has(row);
 		}
 
-		const info = document.getElementById('mnz-docker-pager-info');
+		const info = document.getElementById('docker-pager-info');
 
 		if (info !== null) {
 			info.textContent = filtered.length > 0
@@ -858,8 +858,8 @@ window.monzphere_docker = new class {
 				: '0 ' + <?= json_encode(_('of')) ?> + ' 0';
 		}
 
-		const prev = document.getElementById('mnz-docker-pager-prev');
-		const next = document.getElementById('mnz-docker-pager-next');
+		const prev = document.getElementById('docker-pager-prev');
+		const next = document.getElementById('docker-pager-next');
 
 		if (prev !== null) {
 			prev.disabled = this._table_state.page <= 1;
@@ -869,15 +869,15 @@ window.monzphere_docker = new class {
 			next.disabled = this._table_state.page >= pages;
 		}
 
-		for (const header of document.querySelectorAll('.mnz-docker-sort')) {
-			const arrow = header.querySelector('.mnz-docker-sort-arrow');
+		for (const header of document.querySelectorAll('.docker-sort')) {
+			const arrow = header.querySelector('.docker-sort-arrow');
 			const th = header.closest('th');
 
 			if (arrow !== null) {
 				arrow.innerHTML = '';
 			}
 
-			if (sort !== null && header.dataset.mnzSort === sort) {
+			if (sort !== null && header.dataset.sort === sort) {
 				if (arrow !== null) {
 					const icon = document.createElement('span');
 
@@ -895,18 +895,18 @@ window.monzphere_docker = new class {
 	}
 
 	_initContainerModal() {
-		const table = document.getElementById('mnz-docker-table');
+		const table = document.getElementById('docker-table');
 
 		if (table === null) {
 			return;
 		}
 
 		table.addEventListener('click', (e) => {
-			const link = e.target.closest('[data-mnz-container]');
+			const link = e.target.closest('[data-container]');
 
 			if (link !== null) {
 				e.preventDefault();
-				this._openContainerModal(link.dataset.mnzContainer, link);
+				this._openContainerModal(link.dataset.container, link);
 			}
 		});
 	}
@@ -916,7 +916,7 @@ window.monzphere_docker = new class {
 			return this._modal;
 		}
 
-		const backdrop = document.getElementById('mnz-docker-modal');
+		const backdrop = document.getElementById('docker-modal');
 
 		if (backdrop === null) {
 			return null;
@@ -924,12 +924,12 @@ window.monzphere_docker = new class {
 
 		this._modal = {
 			backdrop,
-			dialog: backdrop.querySelector('.mnz-docker-modal'),
-			title: document.getElementById('mnz-docker-modal-title'),
-			body: backdrop.querySelector('.mnz-docker-modal-body')
+			dialog: backdrop.querySelector('.docker-modal'),
+			title: document.getElementById('docker-modal-title'),
+			body: backdrop.querySelector('.docker-modal-body')
 		};
 
-		backdrop.querySelector('.mnz-docker-modal-close')
+		backdrop.querySelector('.docker-modal-close')
 			.addEventListener('click', () => this._closeModal());
 
 		backdrop.addEventListener('click', (e) => {
@@ -970,12 +970,12 @@ window.monzphere_docker = new class {
 		const modal = this._modal;
 		const seq = ++this._modal_seq;
 
-		modal.body.innerHTML = '<div class="mnz-docker-loading">'
+		modal.body.innerHTML = '<div class="docker-loading">'
 			+ <?= json_encode(_('Loading...')) ?> + '</div>';
 
 		const url = new Curl('zabbix.php');
 
-		url.setArgument('action', 'monzphere.docker.container');
+		url.setArgument('action', 'docker.container');
 		url.setArgument('hostid', this._hostid);
 		url.setArgument('name', name);
 
@@ -1013,7 +1013,7 @@ window.monzphere_docker = new class {
 		if (description !== '') {
 			const note = document.createElement('span');
 
-			note.className = 'mnz-docker-modal-title-description';
+			note.className = 'docker-modal-title-description';
 			note.textContent = '- ' + description;
 			title.append(note);
 		}

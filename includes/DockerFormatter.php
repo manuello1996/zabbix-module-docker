@@ -1,6 +1,6 @@
 <?php declare(strict_types = 0);
 
-namespace Modules\MonzphereDocker\Includes;
+namespace Modules\MonitorDocker\Includes;
 
 class DockerFormatter {
 	public static function formatOverview(array $overview): array {
