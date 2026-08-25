@@ -125,7 +125,6 @@ $html_page->addItem(
 
 $html_page->addItem(
 	(new CDiv([
-		(new CTag('h4', true, _('Docker environment overview')))->addClass('docker-section-title'),
 		(new CDiv([
 			$makeStatSegment('nodes', _('Nodes'), (string) $data['totals']['nodes'], ''),
 			$makeStatSegment('total', _('Containers'), (string) $data['totals']['total'], ''),
