@@ -17,6 +17,7 @@ class DockerFormatter {
 
 	public static function formatContainer(array $container, $node_mem_total = null): array {
 		[$status_text, $status_kind] = self::containerState($container);
+		[$health_text, $health_kind] = self::healthState($container['health'] ?? null);
 
 		$memory_pct = null;
 		$memory_base = (float) ($node_mem_total ?? 0);
@@ -33,6 +34,8 @@ class DockerFormatter {
 			'status' => $container['status'] !== null ? $container['status'] : self::noData(),
 			'status_text' => $status_text,
 			'status_kind' => $status_kind,
+			'health_text' => $health_text,
+			'health_kind' => $health_kind,
 			'memory_pct' => $memory_pct,
 			'is_running' => $container['is_running'],
 			'cpu' => $container['is_running'] && $container['cpu'] !== null
@@ -72,6 +75,30 @@ class DockerFormatter {
 
 			default:
 				return [ucfirst($container['status']), 'off'];
+		}
+	}
+
+	public static function healthState($health): array {
+		$value = is_numeric($health) ? (string) (int) $health : (string) $health;
+
+		switch ($value) {
+			case '1':
+				return [_('Starting'), 'starting'];
+
+			case '2':
+				return [_('Unhealthy'), 'unhealthy'];
+
+			case '3':
+				return [_('Healthy'), 'healthy'];
+
+			case '4':
+				return [_('No health check'), 'none'];
+
+			case '':
+				return [self::noData(), 'unknown'];
+
+			default:
+				return [ucfirst($value), 'none'];
 		}
 	}
 

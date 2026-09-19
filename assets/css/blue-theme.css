@@ -427,6 +427,22 @@
 	color: var(--docker-text);
 }
 
+.docker-mount-container-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.docker-mount-security-flag {
+	flex: 0 0 auto;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background-color: var(--docker-stopped);
+	box-shadow: 0 0 0 2px var(--docker-tint-red);
+}
+
 .docker-graphgroup-count {
 	margin-left: auto;
 	padding: 1px 8px;
@@ -797,6 +813,26 @@
 	font-weight: bold;
 }
 
+.docker-health {
+	font-size: 12.5px;
+	white-space: nowrap;
+}
+
+.docker-health-healthy {
+	color: var(--docker-running);
+}
+
+.docker-health-unhealthy {
+	color: var(--docker-stopped);
+	font-weight: bold;
+}
+
+.docker-health-starting,
+.docker-health-none,
+.docker-health-unknown {
+	color: var(--docker-text-muted);
+}
+
 .docker-row-restarting td {
 	background-color: var(--docker-tint-red);
 }
@@ -1088,6 +1124,34 @@
 	font-size: 11.5px;
 }
 
+.docker-compose-health-rollup {
+	display: inline-flex;
+	gap: 6px;
+	font-size: 11.5px;
+	white-space: nowrap;
+}
+
+.docker-compose-health,
+.docker-compose-health-healthy {
+	color: var(--docker-running);
+	font-size: 11.5px;
+	white-space: nowrap;
+}
+
+.docker-compose-health-unhealthy {
+	color: var(--docker-stopped);
+	font-size: 11.5px;
+	font-weight: bold;
+	white-space: nowrap;
+}
+
+.docker-compose-health-starting,
+.docker-compose-health-none {
+	color: var(--docker-text-muted);
+	font-size: 11.5px;
+	white-space: nowrap;
+}
+
 .docker-compose-deployment {
 	margin-bottom: 14px;
 }
@@ -1106,10 +1170,16 @@
 }
 
 .docker-compose-container .docker-graphgroup-head {
-	flex-wrap: wrap;
+	display: grid;
+	grid-template-columns: 10px minmax(130px, 1fr) minmax(110px, 140px) minmax(160px, 2fr) 80px 105px auto;
+	gap: 10px;
 	height: auto;
 	padding-top: 9px;
 	padding-bottom: 9px;
+}
+
+.docker-compose-container .docker-graphgroup-count {
+	margin-left: 0;
 }
 
 .docker-compose-container-actions {
@@ -1118,15 +1188,14 @@
 }
 
 .docker-compose-container-service {
-	min-width: 110px;
+	min-width: 0;
 	color: var(--docker-text-muted);
 	font-size: 11.5px;
 }
 
 .docker-compose-container-image {
-	flex: 1 1 180px;
-	min-width: 100px;
-	max-width: 420px;
+	min-width: 0;
+	max-width: none;
 	color: var(--docker-text);
 	font-size: 11.5px;
 	overflow: hidden;
@@ -1161,10 +1230,13 @@
 		margin-left: 0;
 	}
 
+	.docker-compose-container .docker-graphgroup-head {
+		grid-template-columns: 10px minmax(0, 1fr) 80px 105px auto;
+	}
+
+	.docker-compose-container-service,
 	.docker-compose-container-image {
-		flex-basis: 100%;
-		order: 5;
-		max-width: none;
+		grid-column: 2 / -1;
 	}
 }
 

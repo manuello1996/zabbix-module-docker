@@ -9,7 +9,7 @@ window.monitor_docker = new class {
 		this._tab_cache = new Map();
 		this._tab_pages = new Map();
 		this._problem_pages = new Map([['docker', '1'], ['other', '1']]);
-		this._table_state = {search: '', status: 'all', sort: null, dir: 1, page: 1};
+		this._table_state = {search: '', status: 'all', health: 'all', sort: null, dir: 1, page: 1};
 		this._page_size = 25;
 		this._search_debounce = null;
 		this._image_filter_debounce = null;
@@ -750,6 +750,12 @@ window.monitor_docker = new class {
 			this._applyTableState();
 		});
 
+		document.getElementById('docker-health')?.addEventListener('change', (e) => {
+			this._table_state.health = e.target.value;
+			this._table_state.page = 1;
+			this._applyTableState();
+		});
+
 		document.getElementById('docker-pager-prev')?.addEventListener('click', () => {
 			this._table_state.page = Math.max(1, this._table_state.page - 1);
 			this._applyTableState();
@@ -797,10 +803,12 @@ window.monitor_docker = new class {
 
 		const rows = [...tbody.querySelectorAll('tr')].filter((row) => row.dataset.name !== undefined);
 
-		const counts = {all: rows.length, running: 0, stopped: 0};
+		const counts = {all: rows.length, running: 0, restarting: 0, paused: 0, exited: 0};
+		const health_counts = {all: rows.length, healthy: 0, unhealthy: 0, starting: 0, none: 0};
 
 		for (const row of rows) {
 			counts[row.dataset.status] = (counts[row.dataset.status] ?? 0) + 1;
+			health_counts[row.dataset.health] = (health_counts[row.dataset.health] ?? 0) + 1;
 		}
 
 		const status_select = document.getElementById('docker-status');
@@ -810,14 +818,32 @@ window.monitor_docker = new class {
 				const labels = {
 					all: <?= json_encode(_('All')) ?>,
 					running: <?= json_encode(_('Running')) ?>,
-					stopped: <?= json_encode(_('Stopped')) ?>
+					restarting: <?= json_encode(_('Restarting')) ?>,
+					paused: <?= json_encode(_('Paused')) ?>,
+					exited: <?= json_encode(_('Stopped')) ?>
 				};
 
 				option.textContent = `${labels[option.value]} (${counts[option.value] ?? 0})`;
 			}
 		}
 
-		const {search, status, sort, dir} = this._table_state;
+		const health_select = document.getElementById('docker-health');
+
+		if (health_select !== null) {
+			for (const option of health_select.options) {
+				const labels = {
+					all: <?= json_encode(_('All')) ?>,
+					healthy: <?= json_encode(_('Healthy')) ?>,
+					unhealthy: <?= json_encode(_('Unhealthy')) ?>,
+					starting: <?= json_encode(_('Starting')) ?>,
+					none: <?= json_encode(_('No health check')) ?>
+				};
+
+				option.textContent = `${labels[option.value]} (${health_counts[option.value] ?? 0})`;
+			}
+		}
+
+		const {search, status, health, sort, dir} = this._table_state;
 
 		if (sort !== null) {
 			const dataset_key = sort;
@@ -837,6 +863,7 @@ window.monitor_docker = new class {
 				|| row.dataset.name.includes(search)
 				|| (row.dataset.note ?? '').includes(search))
 			&& (status === 'all' || row.dataset.status === status)
+			&& (health === 'all' || row.dataset.health === health)
 		);
 
 		const pages = Math.max(1, Math.ceil(filtered.length / this._page_size));

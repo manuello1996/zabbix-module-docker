@@ -635,6 +635,32 @@ class CControllerDockerTab extends CController {
 		return $states;
 	}
 
+	private function getContainerHealth(string $hostid): array {
+		$items = API::Item()->get([
+			'output' => ['key_', 'lastvalue', 'lastclock'],
+			'hostids' => $hostid,
+			'search' => ['key_' => 'docker.container_info.state.health['],
+			'startSearch' => true,
+			'monitored' => true
+		]);
+		$health = [];
+
+		foreach ($items as $item) {
+			if (!DockerCollector::hasRecentValue($item)
+					|| preg_match(
+						'/^docker\.container_info\.state\.health\["?\/?([^"\]]+)"?\]$/',
+						$item['key_'],
+						$matches
+					) != 1) {
+				continue;
+			}
+
+			$health[$matches[1]] = DockerFormatter::healthState($item['lastvalue']);
+		}
+
+		return $health;
+	}
+
 	private function makeVolumesPanel(string $hostid, int $page): CDiv {
 		$raw = $this->textItemValue($hostid, 'docker.volumes.raw');
 
@@ -753,19 +779,24 @@ class CControllerDockerTab extends CController {
 				}
 
 				$is_read_write = (bool) ($mount['RW'] ?? false);
+				$source = (string) ($mount['Source'] ?? '');
 
 				if (!array_key_exists($group_key, $mount_groups)) {
 					$mount_groups[$group_key] = [
 						'container' => $container_name,
 						'container_id' => $container_id,
+						'has_sensitive_mount' => false,
 						'mounts' => []
 					];
 				}
 
+				$mount_groups[$group_key]['has_sensitive_mount'] =
+					$mount_groups[$group_key]['has_sensitive_mount'] || $this->isSensitiveMountSource($source);
+
 				$mount_groups[$group_key]['mounts'][] = [
 					'type' => (string) ($mount['Type'] ?? ''),
 					'name' => (string) ($mount['Name'] ?? ''),
-					'source' => (string) ($mount['Source'] ?? ''),
+					'source' => $source,
 					'destination' => (string) ($mount['Destination'] ?? ''),
 					'driver' => (string) ($mount['Driver'] ?? ''),
 					'mode' => (string) ($mount['Mode'] ?? ''),
@@ -810,7 +841,22 @@ class CControllerDockerTab extends CController {
 		$expand_all = $mount_count <= 6;
 
 		foreach ($mount_groups as $mount_group) {
-			$container_label = new CSpan($mount_group['container'] !== '' ? $mount_group['container'] : '-');
+			$container_label_parts = [
+				(new CSpan($mount_group['container'] !== '' ? $mount_group['container'] : '-'))
+					->addClass('docker-mount-container-name')
+			];
+
+			if ($mount_group['has_sensitive_mount']) {
+				$container_label_parts[] = (new CSpan())
+					->addClass('docker-mount-security-flag')
+					->setAttribute('role', 'img')
+					->setAttribute('aria-label', _('Security warning: host root or /etc is mounted.'))
+					->setTitle(_('Security warning: host root or /etc is mounted.'));
+			}
+
+			$container_label = (new CSpan($container_label_parts))
+				->addClass('docker-graphgroup-name')
+				->addClass('docker-mount-container-label');
 
 			if ($mount_group['container_id'] !== '') {
 				$container_label->setTitle($mount_group['container_id']);
@@ -882,6 +928,10 @@ class CControllerDockerTab extends CController {
 		]));
 	}
 
+	private function isSensitiveMountSource(string $source): bool {
+		return $source === '/' || rtrim($source, '/') === '/etc';
+	}
+
 	private function makeComposePanel(string $hostid, int $page): CDiv {
 		$snapshot = $this->getContainerDataset($hostid, 'docker.containers.labels');
 
@@ -901,6 +951,8 @@ class CControllerDockerTab extends CController {
 
 		$projects = [];
 		$running = 0;
+		$container_health = $this->getContainerHealth($hostid);
+		$health_counts = ['healthy' => 0, 'unhealthy' => 0, 'starting' => 0, 'none' => 0];
 
 		foreach ($snapshot['containers'] as $container) {
 			if (!is_array($container) || !is_array($container['Labels'] ?? null)) {
@@ -922,29 +974,49 @@ class CControllerDockerTab extends CController {
 				? $names[0]
 				: substr((string) ($container['Id'] ?? ''), 0, 12);
 			$compose_labels = [];
+			$container_labels = [];
 
 			foreach ($labels as $key => $value) {
-				if (str_starts_with((string) $key, 'com.docker.compose.')) {
-					$compose_labels[(string) $key] = is_scalar($value) || $value === null
-						? (string) $value
-						: json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+				$key = (string) $key;
+
+				if (!str_starts_with($key, 'com.docker.compose.')) {
+					continue;
+				}
+
+				$formatted_value = is_scalar($value) || $value === null
+					? (string) $value
+					: json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+				$compose_labels[$key] = $formatted_value;
+
+				if ($key !== 'com.docker.compose.project'
+						&& !str_starts_with($key, 'com.docker.compose.project.')
+						&& $key !== 'com.docker.compose.version') {
+					$container_labels[$key] = $formatted_value;
 				}
 			}
 
 			uksort($compose_labels, 'strnatcasecmp');
+			uksort($container_labels, 'strnatcasecmp');
 
 			$state = strtolower((string) ($container['State'] ?? ''));
 			$is_running = $state === 'running';
+			$health = $container_health[$name] ?? null;
 			$running += (int) $is_running;
+
+			if ($health !== null) {
+				$health_counts[$health[1]] = ($health_counts[$health[1]] ?? 0) + 1;
+			}
+
 			$projects[$project]['containers'][] = [
 				'name' => $name,
 				'id' => (string) ($container['Id'] ?? ''),
 				'image' => (string) ($container['Image'] ?? ''),
 				'state' => $state,
 				'is_running' => $is_running,
+				'health' => $health,
 				'service' => (string) ($labels['com.docker.compose.service'] ?? ''),
 				'number' => (string) ($labels['com.docker.compose.container-number'] ?? ''),
-				'labels' => $compose_labels
+				'labels' => $container_labels
 			];
 
 			foreach ($compose_labels as $key => $value) {
@@ -984,7 +1056,9 @@ class CControllerDockerTab extends CController {
 			[_('Projects'), $project_count],
 			[_('Containers'), $container_count],
 			[_('Running'), $running],
-			[_('Stopped'), $container_count - $running]
+			[_('Stopped'), $container_count - $running],
+			[_('Healthy'), $health_counts['healthy']],
+			[_('Unhealthy'), $health_counts['unhealthy']]
 		] as [$label, $value]) {
 			$pills[] = (new CDiv([
 				(new CSpan($label))->addClass('docker-card-unit'),
@@ -1016,6 +1090,7 @@ class CControllerDockerTab extends CController {
 			}
 
 			$project_running = 0;
+			$project_health_counts = ['healthy' => 0, 'unhealthy' => 0, 'starting' => 0, 'none' => 0];
 			$services = [];
 			$container_nodes = [];
 			$expand_containers = count($project['containers']) <= 3;
@@ -1023,22 +1098,31 @@ class CControllerDockerTab extends CController {
 			foreach ($project['containers'] as $container) {
 				$project_running += (int) $container['is_running'];
 
+				if ($container['health'] !== null) {
+					$project_health_counts[$container['health'][1]] =
+						($project_health_counts[$container['health'][1]] ?? 0) + 1;
+				}
+
 				if ($container['service'] !== '') {
 					$services[$container['service']] = true;
 				}
 
-				$labels_table = (new CTableInfo())
-					->setHeader([_('Compose label'), _('Value')]);
+				$labels_table = null;
 
-				foreach ($container['labels'] as $key => $value) {
-					$labels_table->addRow([
-						(new CSpan($key))
-							->addClass('docker-label-key')
-							->setTitle($key),
-						(new CSpan($value !== '' ? $value : '-'))
-							->addClass('docker-label-value')
-							->setTitle($value)
-					]);
+				if ($container['labels']) {
+					$labels_table = (new CTableInfo())
+						->setHeader([_('Compose label'), _('Value')]);
+
+					foreach ($container['labels'] as $key => $value) {
+						$labels_table->addRow([
+							(new CSpan($key))
+								->addClass('docker-label-key')
+								->setTitle($key),
+							(new CSpan($value !== '' ? $value : '-'))
+								->addClass('docker-label-value')
+								->setTitle($value)
+						]);
+					}
 				}
 
 				$details_link = null;
@@ -1078,6 +1162,11 @@ class CControllerDockerTab extends CController {
 							? 'docker-status-running'
 							: 'docker-status-stopped'
 						),
+					$container['health'] !== null
+						? (new CSpan($container['health'][0]))
+							->addClass('docker-compose-health')
+							->addClass('docker-compose-health-'.$container['health'][1])
+						: null,
 					(new CSpan((string) count($container['labels'])))
 						->addClass('docker-graphgroup-count')
 				]))
@@ -1106,11 +1195,31 @@ class CControllerDockerTab extends CController {
 				$body->setAttribute('hidden', 'hidden');
 			}
 
+			$health_rollup = [];
+			$health_labels = [
+				'healthy' => _('Healthy'),
+				'unhealthy' => _('Unhealthy'),
+				'starting' => _('Starting')
+			];
+
+			foreach ($health_labels as $kind => $label) {
+				if ($project_health_counts[$kind] > 0) {
+					$health_rollup[] = (new CSpan(
+						$project_health_counts[$kind].' '.$label
+					))->addClass('docker-compose-health-'.$kind);
+				}
+			}
+
+			if (!$health_rollup) {
+				$health_rollup[] = (new CSpan(_('No health checks')))->addClass('docker-compose-health-none');
+			}
+
 			$head = (new CTag('button', true, [
 				(new CSpan())->addClass('docker-graphgroup-caret'),
 				(new CSpan($project['name']))->addClass('docker-graphgroup-name'),
 				(new CSpan(count($services).' '._('services')))
 					->addClass('docker-compose-project-summary'),
+				(new CSpan($health_rollup))->addClass('docker-compose-health-rollup'),
 				(new CSpan($project_running.'/'.count($project['containers']).' '._('running')))
 					->addClass($project_running === count($project['containers'])
 						? 'docker-status-running'

@@ -38,7 +38,7 @@ $html_page->addItem(
 $filter_left = (new CFormGrid())
 	->addClass(CFormGrid::ZBX_STYLE_FORM_GRID_LABEL_WIDTH_TRUE)
 	->addItem([
-		new CLabel(_('Name'), 'filter_name'),
+		new CLabel(_('Name or notes'), 'filter_name'),
 		new CFormField(
 			(new CTextBox('filter_name', $data['filter']['name']))
 				->setWidth(ZBX_TEXTAREA_FILTER_STANDARD_WIDTH)

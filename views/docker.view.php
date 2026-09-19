@@ -267,11 +267,24 @@ $html_page->addItem(
 $status_select = (new CTag('select', true, [
 	(new CTag('option', true, _('All')))->setAttribute('value', 'all'),
 	(new CTag('option', true, _('Running')))->setAttribute('value', 'running'),
-	(new CTag('option', true, _('Stopped')))->setAttribute('value', 'stopped')
+	(new CTag('option', true, _('Restarting')))->setAttribute('value', 'restarting'),
+	(new CTag('option', true, _('Paused')))->setAttribute('value', 'paused'),
+	(new CTag('option', true, _('Stopped')))->setAttribute('value', 'exited')
 ]))
 	->setId('docker-status')
 	->addClass('docker-status-select')
-	->setAttribute('aria-label', _('Filter by status'));
+	->setAttribute('aria-label', _('Filter by runtime state'));
+
+$health_select = (new CTag('select', true, [
+	(new CTag('option', true, _('All')))->setAttribute('value', 'all'),
+	(new CTag('option', true, _('Healthy')))->setAttribute('value', 'healthy'),
+	(new CTag('option', true, _('Unhealthy')))->setAttribute('value', 'unhealthy'),
+	(new CTag('option', true, _('Starting')))->setAttribute('value', 'starting'),
+	(new CTag('option', true, _('No health check')))->setAttribute('value', 'none')
+]))
+	->setId('docker-health')
+	->addClass('docker-status-select')
+	->setAttribute('aria-label', _('Filter by health'));
 
 $toolbar = (new CDiv([
 	(new CTag('input', false))
@@ -282,8 +295,12 @@ $toolbar = (new CDiv([
 		->setAttribute('autocomplete', 'off')
 		->addClass('docker-search'),
 	(new CDiv([
-		(new CSpan(_('Status').':'))->addClass('docker-status-label'),
+		(new CSpan(_('State').':'))->addClass('docker-status-label'),
 		$status_select
+	]))->addClass('docker-status-wrap'),
+	(new CDiv([
+		(new CSpan(_('Health').':'))->addClass('docker-status-label'),
+		$health_select
 	]))->addClass('docker-status-wrap'),
 	(new CDiv([
 		(new CTag('button', true, '‹'))
@@ -314,7 +331,8 @@ $table = (new CTableInfo())
 	->setHeader([
 		$makeSortHeader(_('Container name'), 'name'),
 		_('Note'),
-		_('Status'),
+		_('Uptime'),
+		_('Health'),
 		$makeSortHeader(_('CPU % (24h)'), 'cpu'),
 		$makeSortHeader(_('Memory usage'), 'memory'),
 		_('Net I/O (rx/tx)')
@@ -335,6 +353,10 @@ foreach ($data['containers'] as $container) {
 			->addClass('docker-state')
 			->addClass('docker-state-'.$row['status_kind'])
 			->addClass('js-status'),
+
+		(new CSpan($row['health_text']))
+			->addClass('docker-health')
+			->addClass('docker-health-'.$row['health_kind']),
 
 		(new CDiv([
 			(new CSpan($row['cpu']))->addClass('docker-metric-value')->addClass('js-cpu'),
@@ -362,7 +384,8 @@ foreach ($data['containers'] as $container) {
 		->addClass(in_array($row['status_kind'], ['down', 'off'], true) ? 'docker-row-off' : null)
 		->setAttribute('data-name', mb_strtolower($row['name']))
 		->setAttribute('data-note', mb_strtolower($row['note']))
-		->setAttribute('data-status', $row['is_running'] ? 'running' : 'stopped')
+		->setAttribute('data-status', strtolower((string) ($container['status'] ?? 'unknown')))
+		->setAttribute('data-health', $row['health_kind'])
 		->setAttribute('data-cpu', (string) $row['cpu_raw'])
 		->setAttribute('data-memory', (string) $row['memory_raw'])
 	);

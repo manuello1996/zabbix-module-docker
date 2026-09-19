@@ -20,6 +20,7 @@ class DockerCollector {
 
 	public const CONTAINER_KEYS = [
 		'docker.container.description' => 'note',
+		'docker.container_info.state.health' => 'health',
 		'docker.container_info.state.status' => 'status',
 		'docker.container_info.state.exitcode' => 'exitcode',
 		'docker.container_info.restart_count' => 'restarts',
@@ -419,6 +420,7 @@ class DockerCollector {
 		return [
 			'name' => $name,
 			'note' => null,
+			'health' => null,
 			'status' => null,
 			'exitcode' => null,
 			'restarts' => null,
