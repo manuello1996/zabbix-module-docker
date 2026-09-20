@@ -156,6 +156,7 @@ class CControllerDockerView extends CController {
 			'host' => $host,
 			'overview' => null,
 			'containers' => [],
+			'container_data_sources' => [],
 			'node' => array_fill_keys(array_values(DockerCollector::NODE_KEYS), null),
 			'problems_by_severity' => [],
 			'agent_address' => ''
@@ -163,6 +164,7 @@ class CControllerDockerView extends CController {
 
 		if ($hostid !== '') {
 			$data = array_replace($data, DockerCollector::collect($hostid));
+			$data['container_data_sources'] = $this->containerDataSources($hostid);
 
 			$data['node'] = DockerCollector::nodeInfo($hostid);
 			$data['problems_by_severity'] = DockerCollector::problemsBySeverity($hostid);
@@ -187,6 +189,36 @@ class CControllerDockerView extends CController {
 		$response->setTitle(_('Docker'));
 
 		$this->setResponse($response);
+	}
+
+	private function containerDataSources(string $hostid): array {
+		$sources = [
+			['label' => _('Container inspect data'), 'key' => 'docker.container_info[',
+				'display_key' => 'docker.container_info["{#NAME}",full]'],
+			['label' => _('Container statistics'), 'key' => 'docker.container_stats[',
+				'display_key' => 'docker.container_stats["{#NAME}"]']
+		];
+
+		foreach ($sources as &$source) {
+			$items = API::Item()->get([
+				'output' => ['lastclock', 'delay'],
+				'hostids' => $hostid,
+				'search' => ['key_' => $source['key']],
+				'startSearch' => true,
+				'monitored' => true
+			]);
+			$source['clocks'] = array_values(array_filter(array_map(
+				static fn (array $item): int => (int) $item['lastclock'],
+				$items
+			)));
+			$source['delays'] = array_values(array_unique(array_filter(array_map(
+				static fn (array $item): string => (string) $item['delay'],
+				$items
+			), static fn (string $delay): bool => $delay !== '' && $delay !== '0')));
+		}
+		unset($source);
+
+		return $sources;
 	}
 
 	public static function filterDockerHosts(array $hosts): array {

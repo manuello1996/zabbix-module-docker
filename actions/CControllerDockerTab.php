@@ -137,6 +137,98 @@ class CControllerDockerTab extends CController {
 			->setArgument('tab', $tab);
 	}
 
+	private function tabDataSources(string $tab): array {
+		return match ($tab) {
+			'node' => [
+				[_('Docker engine information'), 'docker.info'],
+				[_('Docker storage usage'), 'docker.data_usage']
+			],
+			'images' => [
+				[_('Docker images'), 'docker.images'],
+				[_('Container list'), 'docker.containers']
+			],
+			'volumes' => [[_('Docker storage usage'), 'docker.data_usage']],
+			'mounts' => [[_('Container list'), 'docker.containers']],
+			'networks' => [
+				[_('Container inspect data'), 'docker.container_info[', 'docker.container_info["{#NAME}",full]'],
+				[_('Container list'), 'docker.containers']
+			],
+			'compose' => [
+				[_('Container labels collector'), 'docker.containers.labels.raw'],
+				[_('Container inspect data'), 'docker.container_info[', 'docker.container_info["{#NAME}",full]']
+			],
+			'graphs' => [
+				[_('Container inspect data'), 'docker.container_info[', 'docker.container_info["{#NAME}",full]'],
+				[_('Container statistics'), 'docker.container_stats[', 'docker.container_stats["{#NAME}"]']
+			],
+			'problems' => [[_('Zabbix problem data'), null, _('Live problem API')]],
+			default => []
+		};
+	}
+
+	private function makeDataSourceStrip(string $hostid, string $tab): ?CDiv {
+		$sources = $this->tabDataSources($tab);
+
+		if (!$sources) {
+			return null;
+		}
+
+		$clocks = [];
+		$delays = [];
+		$is_live = false;
+
+		foreach ($sources as $source) {
+			[$label, $key] = $source;
+
+			if ($key === null) {
+				$is_live = true;
+				continue;
+			}
+
+			$is_pattern = str_ends_with($key, '[');
+			$query = [
+				'output' => ['lastclock', 'delay'],
+				'hostids' => $hostid,
+				'monitored' => true
+			];
+
+			if ($is_pattern) {
+				$query['search'] = ['key_' => $key];
+				$query['startSearch'] = true;
+			}
+			else {
+				$query['filter'] = ['key_' => $key];
+			}
+
+			foreach (API::Item()->get($query) as $item) {
+				if ((int) $item['lastclock'] > 0) {
+					$clocks[] = (int) $item['lastclock'];
+				}
+
+				if ($item['delay'] !== '' && $item['delay'] !== '0') {
+					$delays[] = (string) $item['delay'];
+				}
+			}
+		}
+
+		if ($is_live) {
+			$updated = _('Live');
+			$interval = _('On page load');
+		}
+		else {
+			$updated = $clocks
+				? zbx_date2str(DATE_TIME_FORMAT_SECONDS, min($clocks)).' ('.zbx_date2age(min($clocks)).')'
+				: _('No value received');
+			$delays = array_values(array_unique($delays));
+			$interval = $delays ? implode(', ', $delays) : '-';
+		}
+
+		return (new CDiv([
+			(new CSpan([_('Updated').': ', $updated])),
+			(new CSpan([_('Interval').': ', $interval]))
+		]))->addClass('docker-data-freshness');
+	}
+
 	private function makeNodePanel(string $hostid): CDiv {
 		$highlight_keys = [
 			'docker.ping' => [_('Docker engine'), 'ping'],
@@ -1683,6 +1775,7 @@ class CControllerDockerTab extends CController {
 	private function wrapPanel(string $title, CTag $body): CDiv {
 		return (new CDiv([
 			(new CTag('h4', true, $title))->addClass('docker-section-title'),
+			$this->makeDataSourceStrip($this->getInput('hostid'), $this->getInput('tab')),
 			$body
 		]))->addClass('docker-section');
 	}

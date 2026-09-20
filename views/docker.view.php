@@ -325,6 +325,27 @@ $makeSortHeader = static function (string $label, string $key): CSpan {
 		->setAttribute('tabindex', '0');
 };
 
+$container_clocks = [];
+$container_delays = [];
+
+foreach ($data['container_data_sources'] as $source) {
+	$container_clocks = array_merge($container_clocks, $source['clocks']);
+	$container_delays = array_merge($container_delays, $source['delays']);
+}
+
+$container_data_sources = (new CDiv([
+	(new CSpan([
+		_('Updated').': ',
+		$container_clocks
+			? zbx_date2str(DATE_TIME_FORMAT_SECONDS, min($container_clocks))
+				.' ('.zbx_date2age(min($container_clocks)).')'
+			: _('No value received')
+	])),
+	(new CSpan([_('Interval').': ', $container_delays
+		? implode(', ', array_values(array_unique($container_delays)))
+		: '-']))
+]))->addClass('docker-data-freshness');
+
 $table = (new CTableInfo())
 	->setId('docker-table')
 	->setAttribute('data-total', (string) ($data['containers_total'] ?? count($data['containers'])))
@@ -393,6 +414,7 @@ foreach ($data['containers'] as $container) {
 
 $table_section = (new CDiv([
 	(new CTag('h4', true, _('Container metrics (latest)')))->addClass('docker-section-title'),
+	$container_data_sources,
 	$toolbar,
 	$table,
 	$data['paging'] ?? null
