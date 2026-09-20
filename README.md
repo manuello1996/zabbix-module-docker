@@ -14,6 +14,10 @@ A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages t
   - Optional container state, host-tag, all-problem and Docker-template-problem filters
   - Docker-template problem matching includes templates whose visible name contains `Docker by Zabbix agent 2`
   - CSV export of every collected image older than 365 days, with Team, Host, inventory Notes, Image and creation Date columns
+- **Docker Cleanup** (the **Docker Cleanup** action on `Monitoring > Docker`)
+  - On-demand, read-only host summary of removable dangling images, stopped containers and unused volumes
+  - Uses existing `docker.images` and `docker.data_usage` values; no template or Agent UserParameter changes are needed
+  - Sorts hosts by estimated reclaimable storage without loading cleanup data on the Docker nodes overview
 - **Node detail page**
   - Host bar with availability badges (native hint popups) and compact stat pills
   - Problems split into Docker-template-originated and other host problems
@@ -62,7 +66,8 @@ Container labels require the additional Agent 2 UserParameter shipped in
 [`agent2/docker-labels.conf`](agent2/docker-labels.conf). Copy it into the Agent 2 include directory,
 ensure `curl` is installed and the Agent 2 user can read `/var/run/docker.sock`, then reload or restart
 Agent 2. The raw Docker API response is not retained; the dependent `docker.containers.labels` item
-stores only container identity, image, state and labels.
+stores only container identity, image, state and labels. The cleanup page never executes a Docker
+prune or removal command.
 | PHP | 8.2 – 8.5 |
 
 ## Installation
@@ -144,6 +149,7 @@ monitor_docker/
 ├── Module.php                       # menu entry + time selector registration
 ├── actions/
 │   ├── CControllerDockerList.php       # nodes overview
+│   ├── CControllerDockerCleanup.php    # cleanup candidates overview
 │   ├── CControllerDockerView.php       # node detail
 │   ├── CControllerDockerTab.php        # host tab panels (JSON)
 │   ├── CControllerDockerContainer.php  # container modal (JSON)
@@ -153,6 +159,7 @@ monitor_docker/
 │   └── DockerFormatter.php          # display formatting
 ├── views/
 │   ├── docker.list.php
+│   ├── docker.cleanup.php
 │   ├── docker.view.php
 │   └── js/
 │       ├── docker.list.js.php

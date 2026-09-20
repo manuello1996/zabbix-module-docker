@@ -13,6 +13,11 @@
 			"view": "docker.list",
 			"layout": "layout.htmlpage"
 		},
+		"docker.cleanup": {
+			"class": "CControllerDockerCleanup",
+			"view": "docker.cleanup",
+			"layout": "layout.htmlpage"
+		},
 		"docker.view": {
 			"class": "CControllerDockerView",
 			"view": "docker.view",

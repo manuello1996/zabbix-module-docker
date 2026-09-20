@@ -17,23 +17,21 @@ $makeStatSegment = static function (string $modifier, string $label, string $val
 
 $html_page = (new CHtmlPage())
 	->setTitle(_('Docker nodes'))
-	->setWebLayoutMode(CViewHelper::loadLayoutMode());
-
-$html_page->addItem(
-	(new CDiv([
-		(new CDiv([
-			(new CSpan(_('Nodes')))->addClass('docker-breadcrumb-current')
-		]))
-			->addClass('docker-breadcrumb')
-			->setAttribute('aria-label', _('Breadcrumb')),
-		(new CDiv([
-			(new CRedirectButton(
-				_('Export images older than 365 days (CSV)'),
-				(new CUrl('zabbix.php'))->setArgument('action', 'docker.images.csv')
-			))->addClass(ZBX_STYLE_BTN_ALT)
-		]))->addClass('docker-topbar-actions')
-	]))->addClass('docker-topbar')
-);
+	->setControls(
+		(new CTag('nav', true,
+			(new CList())
+				->addItem(new CRedirectButton(
+					_('Docker Cleanup'),
+					(new CUrl('zabbix.php'))->setArgument('action', 'docker.cleanup')
+				))
+				->addItem(
+					(new CRedirectButton(
+						_('Export images older than 365 days (CSV)'),
+						(new CUrl('zabbix.php'))->setArgument('action', 'docker.images.csv')
+					))->addClass(ZBX_STYLE_BTN_ALT)
+				)
+		))->setAttribute('aria-label', _('Content controls'))
+	);
 
 $filter_left = (new CFormGrid())
 	->addClass(CFormGrid::ZBX_STYLE_FORM_GRID_LABEL_WIDTH_TRUE)

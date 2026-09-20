@@ -6,8 +6,6 @@
 <script>
 window.monitor_docker_list = new class {
 	init({refresh_interval}) {
-		document.querySelector('header.header-title')?.remove();
-
 		this._interval = refresh_interval;
 		this._timer = null;
 		this._last_refresh = Date.now();

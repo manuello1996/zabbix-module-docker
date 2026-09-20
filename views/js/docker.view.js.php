@@ -24,8 +24,6 @@ window.monitor_docker = new class {
 		this._sparkline_batch_timer = null;
 		this._sparkline_history = new Map();
 
-		document.querySelector('header.header-title')?.remove();
-
 		this._initTabs();
 		this._initTableControls();
 		this._initContainerModal();
