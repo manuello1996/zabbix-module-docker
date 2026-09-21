@@ -25,7 +25,9 @@ $html_page = (new CHtmlPage())
 $html_page->addItem(
 	(new CDiv([
 		$make_stat(_('Hosts with candidates'), $data['totals']['hosts']),
-		$make_stat(_('Dangling images'), $data['totals']['images']),
+		$make_stat(_('Dangling images'), $data['totals']['hosts_with_image_data'] > 0
+			? $data['totals']['images']
+			: '—'),
 		$make_stat(_('Stopped containers'), $data['totals']['containers']),
 		$make_stat(_('Unused volumes'), $data['totals']['volumes']),
 		$make_stat(_('Potentially reclaimable'), DockerFormatter::bytes($data['totals']['bytes']))
@@ -34,8 +36,10 @@ $html_page->addItem(
 
 $html_page->addItem(
 	(new CDiv(sprintf(
-		_('Read-only cleanup candidates from existing Docker item values across %1$s hosts. Storage is an estimate because Docker image layers can be shared.'),
-		$data['hosts_scanned']
+		_('Read-only candidates from retained Docker items. Data is available for %1$s of %2$s Docker hosts. Exact dangling-image detection is available for %3$s hosts because the stock template does not retain the raw image inventory.'),
+		$data['totals']['hosts_with_data'],
+		$data['hosts_scanned'],
+		$data['totals']['hosts_with_image_data']
 	)))->addClass('docker-cleanup-note')
 );
 
@@ -48,7 +52,7 @@ $table = (new CTableInfo())
 		_('Potentially reclaimable'),
 		_('Updated')
 	])
-	->setNoDataMessage(_('No cleanup candidates found in the available Docker datasets.'));
+	->setNoDataMessage(_('No cleanup candidates found in the retained Docker data. A host without retained image, container-state or volume data is not treated as clean.'));
 
 foreach ($data['hosts'] as $host) {
 	$detail_url = (new CUrl('zabbix.php'))
@@ -58,7 +62,7 @@ foreach ($data['hosts'] as $host) {
 
 	$table->addRow([
 		(new CLink($host['name'], $detail_url))->addClass('docker-name'),
-		$host['images'],
+		$host['image_data_available'] ? $host['images'] : '—',
 		$host['containers'],
 		$host['volumes'],
 		DockerFormatter::bytes($host['bytes']),

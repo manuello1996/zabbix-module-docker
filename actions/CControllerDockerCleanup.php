@@ -13,9 +13,20 @@ use CWebUser;
 use Modules\MonitorDocker\Includes\DockerCollector;
 
 class CControllerDockerCleanup extends CController {
-	private const DATASET_KEYS = [
+	/*
+	 * docker.images and docker.data_usage are master items with history=0 in the
+	 * stock template. Their lastvalue is consequently unavailable through the
+	 * frontend API. The raw items are still queried for installations that do
+	 * retain them; the remaining sources are retained fallbacks.
+	 */
+	private const RAW_DATASET_KEYS = [
 		'docker.images',
 		'docker.data_usage'
+	];
+
+	private const STORED_ITEM_PREFIXES = [
+		'docker.container_info.state.status[',
+		'docker.volumes.raw'
 	];
 
 	private const REMOVABLE_CONTAINER_STATES = ['created', 'dead', 'exited'];
@@ -52,25 +63,54 @@ class CControllerDockerCleanup extends CController {
 				'preservekeys' => true
 			])
 			: [];
-		$items = $hosts
+		$raw_items = $hosts
 			? API::Item()->get([
 				'output' => ['hostid', 'key_', 'lastvalue', 'lastclock'],
 				'hostids' => array_keys($hosts),
-				'filter' => ['key_' => self::DATASET_KEYS],
+				'filter' => ['key_' => self::RAW_DATASET_KEYS],
+				'monitored' => true
+			])
+			: [];
+		$stored_items = $hosts
+			? API::Item()->get([
+				'output' => ['hostid', 'key_', 'lastvalue', 'lastclock'],
+				'hostids' => array_keys($hosts),
+				'search' => ['key_' => self::STORED_ITEM_PREFIXES],
+				'searchByAny' => true,
+				'startSearch' => true,
 				'monitored' => true
 			])
 			: [];
 		$datasets = [];
 
-		foreach ($items as $item) {
-			if (DockerCollector::hasRecentValue($item)) {
-				$datasets[$item['hostid']][$item['key_']] = $item;
+		foreach ($raw_items as $item) {
+			if (!DockerCollector::hasRecentValue($item)) {
+				continue;
+			}
+
+			$datasets[$item['hostid']][$item['key_']] = $item;
+		}
+
+		foreach ($stored_items as $item) {
+			if (!DockerCollector::hasRecentValue($item)) {
+				continue;
+			}
+
+			if (preg_match('/^docker\\.container_info\\.state\\.status\\[/', $item['key_']) === 1) {
+				$datasets[$item['hostid']]['containers'][] = $item;
+				continue;
+			}
+
+			if ($item['key_'] === 'docker.volumes.raw') {
+				$datasets[$item['hostid']]['volumes'] = $item;
 			}
 		}
 
 		$candidates = [];
 		$totals = [
 			'hosts' => 0,
+			'hosts_with_data' => 0,
+			'hosts_with_image_data' => 0,
 			'images' => 0,
 			'containers' => 0,
 			'volumes' => 0,
@@ -79,6 +119,8 @@ class CControllerDockerCleanup extends CController {
 
 		foreach ($hosts as $hostid => $host) {
 			$summary = $this->summarizeHost($datasets[$hostid] ?? []);
+			$totals['hosts_with_data'] += $summary['has_data'] ? 1 : 0;
+			$totals['hosts_with_image_data'] += $summary['image_data_available'] ? 1 : 0;
 
 			if ($summary['total'] === 0) {
 				continue;
@@ -112,13 +154,17 @@ class CControllerDockerCleanup extends CController {
 	}
 
 	private function summarizeHost(array $items): array {
-		$images = $this->dataset($items['docker.images'] ?? null);
-		$data_usage = $this->dataset($items['docker.data_usage'] ?? null);
-		$containers = is_array($data_usage['Containers'] ?? null) ? $data_usage['Containers'] : [];
-		$volumes = is_array($data_usage['Volumes'] ?? null) ? $data_usage['Volumes'] : [];
+		$images_item = $items['docker.images'] ?? null;
+		$data_usage_item = $items['docker.data_usage'] ?? null;
+		$images = $this->dataset($images_item);
+		$data_usage = $this->dataset($data_usage_item);
+		$raw_containers = is_array($data_usage['Containers'] ?? null) ? $data_usage['Containers'] : [];
+		$raw_volumes = is_array($data_usage['Volumes'] ?? null) ? $data_usage['Volumes'] : [];
+		$containers = $data_usage_item !== null ? $raw_containers : ($items['containers'] ?? []);
+		$volumes = $data_usage_item !== null ? $raw_volumes : $this->dataset($items['volumes'] ?? null);
 		$used_image_ids = [];
 
-		foreach ($containers as $container) {
+		foreach ($raw_containers as $container) {
 			if (is_array($container) && ($image_id = $this->imageId($container['ImageID'] ?? '')) !== '') {
 				$used_image_ids[$image_id] = true;
 			}
@@ -140,13 +186,18 @@ class CControllerDockerCleanup extends CController {
 		}
 
 		foreach ($containers as $container) {
-			if (!is_array($container)
-					|| !in_array(strtolower((string) ($container['State'] ?? '')), self::REMOVABLE_CONTAINER_STATES, true)) {
+			if (!is_array($container)) {
+				continue;
+			}
+
+			$state = $data_usage_item !== null ? ($container['State'] ?? '') : ($container['lastvalue'] ?? '');
+
+			if (!in_array(strtolower((string) $state), self::REMOVABLE_CONTAINER_STATES, true)) {
 				continue;
 			}
 
 			$container_count++;
-			$bytes += max(0.0, (float) ($container['SizeRw'] ?? 0));
+			$bytes += $data_usage_item !== null ? max(0.0, (float) ($container['SizeRw'] ?? 0)) : 0.0;
 		}
 
 		foreach ($volumes as $volume) {
@@ -160,10 +211,7 @@ class CControllerDockerCleanup extends CController {
 			$bytes += max(0.0, (float) ($usage['Size'] ?? 0));
 		}
 
-		$lastclocks = array_filter(array_map(
-			static fn (array $item): int => (int) $item['lastclock'],
-			$items
-		));
+		$lastclocks = $this->lastclocks($items);
 
 		return [
 			'images' => $image_count,
@@ -171,7 +219,9 @@ class CControllerDockerCleanup extends CController {
 			'volumes' => $volume_count,
 			'bytes' => $bytes,
 			'total' => $image_count + $container_count + $volume_count,
-			'lastclock' => $lastclocks ? min($lastclocks) : 0
+			'lastclock' => $lastclocks ? min($lastclocks) : 0,
+			'has_data' => (bool) ($images_item || $data_usage_item || $containers || $volumes),
+			'image_data_available' => $images_item !== null
 		];
 	}
 
@@ -198,5 +248,17 @@ class CControllerDockerCleanup extends CController {
 
 		return array_reduce($tags, static fn (bool $dangling, $tag): bool => $dangling
 			&& in_array($tag, ['<none>', '<none>:<none>'], true), true);
+	}
+
+	private function lastclocks(array $items): array {
+		$clocks = [];
+
+		array_walk_recursive($items, static function ($value, $key) use (&$clocks): void {
+			if ($key === 'lastclock') {
+				$clocks[] = (int) $value;
+			}
+		});
+
+		return array_filter($clocks);
 	}
 }
