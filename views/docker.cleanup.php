@@ -137,13 +137,13 @@ $sort_url = (new CUrl('zabbix.php'))->setArgument('action', 'docker.cleanup');
 
 $table = (new CTableInfo())
 	->setHeader([
-		make_sorting_header(_('Docker host'), 'name', $data['sort'], $data['sortorder'], $sort_url),
-		make_sorting_header(_('Notes'), 'notes', $data['sort'], $data['sortorder'], $sort_url),
-		make_sorting_header(_('Dangling images'), 'images', $data['sort'], $data['sortorder'], $sort_url),
-		make_sorting_header(_('Stopped containers'), 'containers', $data['sort'], $data['sortorder'], $sort_url),
-		make_sorting_header(_('Unused volumes'), 'volumes', $data['sort'], $data['sortorder'], $sort_url),
-		make_sorting_header(_('Potentially reclaimable'), 'bytes', $data['sort'], $data['sortorder'], $sort_url),
-		make_sorting_header(_('Updated'), 'lastclock', $data['sort'], $data['sortorder'], $sort_url)
+		make_sorting_header(_('Docker host'), 'name', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
+		make_sorting_header(_('Notes'), 'notes', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
+		make_sorting_header(_('Dangling images'), 'images', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
+		make_sorting_header(_('Stopped containers'), 'containers', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
+		make_sorting_header(_('Unused volumes'), 'volumes', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
+		make_sorting_header(_('Potentially reclaimable'), 'bytes', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
+		make_sorting_header(_('Updated'), 'lastclock', $data['sort'], $data['sortorder'], $sort_url->getUrl())
 	])
 	->setNoDataMessage(_('No cleanup candidates found in the retained Docker data. A host without retained image, container-state or volume data is not treated as clean.'));
 
