@@ -7,12 +7,25 @@ use CController;
 use CControllerResponseData;
 use CControllerResponseFatal;
 use CPagerHelper;
+use CProfile;
 use CRoleHelper;
 use CUrl;
 use CWebUser;
 use Modules\MonitorDocker\Includes\DockerCollector;
 
 class CControllerDockerCleanup extends CController {
+	private const PROFILE_GROUPIDS = 'web.docker.cleanup.filter.groupids';
+	private const PROFILE_NAME = 'web.docker.cleanup.filter.name';
+	private const PROFILE_PROBLEMS = 'web.docker.cleanup.filter.problems';
+	private const PROFILE_DOCKER_PROBLEMS = 'web.docker.cleanup.filter.docker_problems';
+	private const PROFILE_CONTAINER_STATES = 'web.docker.cleanup.filter.container_states';
+	private const PROFILE_TAG_EVALTYPE = 'web.docker.cleanup.filter.tag_evaltype';
+	private const PROFILE_TAGS_TAG = 'web.docker.cleanup.filter.tags.tag';
+	private const PROFILE_TAGS_VALUE = 'web.docker.cleanup.filter.tags.value';
+	private const PROFILE_TAGS_OPERATOR = 'web.docker.cleanup.filter.tags.operator';
+	private const PROFILE_SORT = 'web.docker.cleanup.sort';
+	private const PROFILE_SORTORDER = 'web.docker.cleanup.sortorder';
+
 	/*
 	 * docker.images and docker.data_usage are master items with history=0 in the
 	 * stock template. Their lastvalue is consequently unavailable through the
@@ -25,18 +38,60 @@ class CControllerDockerCleanup extends CController {
 	];
 
 	private const STORED_ITEM_PREFIXES = [
-		'docker.container_info.state.status[',
+		'docker.containers.stopped',
 		'docker.volumes.raw'
 	];
 
 	private const REMOVABLE_CONTAINER_STATES = ['created', 'dead', 'exited'];
+
+	private const FILTER_CONTAINER_STATES = ['stopped', 'paused', 'unhealthy', 'no_running'];
+
+	private const SORT_FIELDS = ['name', 'notes', 'images', 'containers', 'volumes', 'bytes', 'lastclock'];
 
 	protected function init(): void {
 		$this->disableCsrfValidation();
 	}
 
 	protected function checkInput(): bool {
-		$ret = $this->validateInput(['page' => 'ge 1']);
+		$ret = $this->validateInput([
+			'filter_name' => 'string',
+			'filter_groupids' => 'array_id',
+			'filter_problems' => 'in 0,1',
+			'filter_docker_problems' => 'in 0,1',
+			'filter_container_states' => 'array',
+			'filter_tag_evaltype' => 'in '.TAG_EVAL_TYPE_AND_OR.','.TAG_EVAL_TYPE_OR,
+			'filter_tags' => 'array',
+			'filter_set' => 'in 1',
+			'filter_rst' => 'in 1',
+			'sort' => 'in '.implode(',', self::SORT_FIELDS),
+			'sortorder' => 'in '.ZBX_SORT_UP.','.ZBX_SORT_DOWN,
+			'page' => 'ge 1'
+		]);
+
+		if ($ret && $this->hasInput('filter_container_states')) {
+			foreach ($this->getInput('filter_container_states') as $state) {
+				if (!is_string($state) || !in_array($state, self::FILTER_CONTAINER_STATES, true)) {
+					$ret = false;
+					break;
+				}
+			}
+		}
+
+		if ($ret && $this->hasInput('filter_tags')) {
+			foreach ($this->getInput('filter_tags') as $tag) {
+				if (!is_array($tag) || !array_key_exists('tag', $tag) || !is_string($tag['tag'])
+						|| !array_key_exists('value', $tag) || !is_string($tag['value'])
+						|| !array_key_exists('operator', $tag) || !is_string($tag['operator'])
+						|| !ctype_digit($tag['operator'])
+						|| !in_array((int) $tag['operator'], [TAG_OPERATOR_EXISTS, TAG_OPERATOR_EQUAL,
+							TAG_OPERATOR_LIKE, TAG_OPERATOR_NOT_EXISTS, TAG_OPERATOR_NOT_EQUAL,
+							TAG_OPERATOR_NOT_LIKE
+						], true)) {
+					$ret = false;
+					break;
+				}
+			}
+		}
 
 		if (!$ret) {
 			$this->setResponse(new CControllerResponseFatal());
@@ -50,16 +105,126 @@ class CControllerDockerCleanup extends CController {
 	}
 
 	protected function doAction(): void {
+		if ($this->hasInput('filter_rst')) {
+			CProfile::deleteIdx(self::PROFILE_GROUPIDS);
+			CProfile::delete(self::PROFILE_NAME);
+			CProfile::delete(self::PROFILE_PROBLEMS);
+			CProfile::delete(self::PROFILE_DOCKER_PROBLEMS);
+			CProfile::deleteIdx(self::PROFILE_CONTAINER_STATES);
+			CProfile::delete(self::PROFILE_TAG_EVALTYPE);
+			CProfile::deleteIdx(self::PROFILE_TAGS_TAG);
+			CProfile::deleteIdx(self::PROFILE_TAGS_VALUE);
+			CProfile::deleteIdx(self::PROFILE_TAGS_OPERATOR);
+		}
+		elseif ($this->hasInput('filter_set')) {
+			CProfile::update(self::PROFILE_NAME, $this->getInput('filter_name', ''), PROFILE_TYPE_STR);
+			CProfile::updateArray(self::PROFILE_GROUPIDS, $this->getInput('filter_groupids', []), PROFILE_TYPE_ID);
+			CProfile::update(self::PROFILE_PROBLEMS, (int) $this->getInput('filter_problems', 0), PROFILE_TYPE_INT);
+			CProfile::update(self::PROFILE_DOCKER_PROBLEMS, (int) $this->getInput('filter_docker_problems', 0),
+				PROFILE_TYPE_INT
+			);
+			CProfile::updateArray(self::PROFILE_CONTAINER_STATES,
+				$this->getInput('filter_container_states', []), PROFILE_TYPE_STR
+			);
+			CProfile::update(self::PROFILE_TAG_EVALTYPE,
+				(int) $this->getInput('filter_tag_evaltype', TAG_EVAL_TYPE_AND_OR), PROFILE_TYPE_INT
+			);
+
+			$profile_tags = ['tag' => [], 'value' => [], 'operator' => []];
+
+			foreach ($this->getInput('filter_tags', []) as $tag) {
+				if ($tag['tag'] === '' && $tag['value'] === '') {
+					continue;
+				}
+
+				$profile_tags['tag'][] = $tag['tag'];
+				$profile_tags['value'][] = $tag['value'];
+				$profile_tags['operator'][] = (int) $tag['operator'];
+			}
+
+			CProfile::updateArray(self::PROFILE_TAGS_TAG, $profile_tags['tag'], PROFILE_TYPE_STR);
+			CProfile::updateArray(self::PROFILE_TAGS_VALUE, $profile_tags['value'], PROFILE_TYPE_STR);
+			CProfile::updateArray(self::PROFILE_TAGS_OPERATOR, $profile_tags['operator'], PROFILE_TYPE_INT);
+		}
+
+		if ($this->hasInput('sort')) {
+			CProfile::update(self::PROFILE_SORT, $this->getInput('sort'), PROFILE_TYPE_STR);
+		}
+		if ($this->hasInput('sortorder')) {
+			CProfile::update(self::PROFILE_SORTORDER, $this->getInput('sortorder'), PROFILE_TYPE_STR);
+		}
+
+		$filter_name = (string) CProfile::get(self::PROFILE_NAME, '');
+		$groupids = CProfile::getArray(self::PROFILE_GROUPIDS, []);
+		$filter_problems = (int) CProfile::get(self::PROFILE_PROBLEMS, 0);
+		$filter_docker_problems = (int) CProfile::get(self::PROFILE_DOCKER_PROBLEMS, 0);
+		$filter_container_states = CProfile::getArray(self::PROFILE_CONTAINER_STATES, []);
+		$filter_tag_evaltype = (int) CProfile::get(self::PROFILE_TAG_EVALTYPE, TAG_EVAL_TYPE_AND_OR);
+		$filter_tags = [];
+
+		foreach (CProfile::getArray(self::PROFILE_TAGS_TAG, []) as $index => $tag) {
+			$filter_tags[] = [
+				'tag' => $tag,
+				'value' => (string) CProfile::get(self::PROFILE_TAGS_VALUE, '', $index),
+				'operator' => (int) CProfile::get(self::PROFILE_TAGS_OPERATOR, TAG_OPERATOR_LIKE, $index)
+			];
+		}
+
+		$sort = (string) CProfile::get(self::PROFILE_SORT, 'bytes');
+		$sortorder = (string) CProfile::get(self::PROFILE_SORTORDER, ZBX_SORT_DOWN);
+		$groups = $groupids
+			? API::HostGroup()->get([
+				'output' => ['groupid', 'name'],
+				'groupids' => $groupids,
+				'preservekeys' => true
+			])
+			: [];
 		$docker_items = API::Item()->get([
 			'output' => ['hostid'],
 			'filter' => ['key_' => 'docker.containers.total'],
 			'monitored' => true
 		]);
 		$hostids = array_values(array_unique(array_column($docker_items, 'hostid')));
+
+		if (($filter_name !== '' || $groupids || $filter_tags) && $hostids) {
+			$filter_candidates = API::Host()->get([
+				'output' => ['hostid', 'name'],
+				'selectInventory' => ['notes'],
+				'hostids' => $hostids,
+				'groupids' => $groupids ?: null,
+				'evaltype' => $filter_tag_evaltype,
+				'tags' => $filter_tags ?: null,
+				'inheritedTags' => true,
+				'preservekeys' => true
+			]);
+
+			if ($filter_name !== '') {
+				$filter_candidates = array_filter($filter_candidates,
+					static fn (array $host): bool => mb_stripos($host['name'], $filter_name) !== false
+						|| mb_stripos((string) ($host['inventory']['notes'] ?? ''), $filter_name) !== false
+				);
+			}
+
+			$hostids = array_keys($filter_candidates);
+		}
+
+		if ($filter_container_states && $hostids) {
+			$hostids = $this->filterHostidsByContainerStates($hostids, $filter_container_states);
+		}
+
+		if (($filter_problems || $filter_docker_problems) && $hostids) {
+			$problem_hosts = $filter_docker_problems
+				? DockerCollector::dockerTemplateProblemsByHosts($hostids)
+				: DockerCollector::problemsByHosts($hostids);
+			$hostids = array_values(array_intersect($hostids, array_keys($problem_hosts)));
+		}
+
 		$hosts = $hostids
 			? API::Host()->get([
 				'output' => ['hostid', 'name'],
+				'selectInventory' => ['notes'],
 				'hostids' => $hostids,
+				'groupids' => $groupids ?: null,
 				'preservekeys' => true
 			])
 			: [];
@@ -96,8 +261,8 @@ class CControllerDockerCleanup extends CController {
 				continue;
 			}
 
-			if (preg_match('/^docker\\.container_info\\.state\\.status\\[/', $item['key_']) === 1) {
-				$datasets[$item['hostid']]['containers'][] = $item;
+			if ($item['key_'] === 'docker.containers.stopped') {
+				$datasets[$item['hostid']]['stopped'] = $item;
 				continue;
 			}
 
@@ -134,9 +299,7 @@ class CControllerDockerCleanup extends CController {
 			$totals['bytes'] += $summary['bytes'];
 		}
 
-		usort($candidates, static fn (array $a, array $b): int =>
-			$b['bytes'] <=> $a['bytes'] ?: strnatcasecmp($a['name'], $b['name'])
-		);
+		$this->sortCandidates($candidates, $sort, $sortorder);
 
 		$paging = CPagerHelper::paginate((int) $this->getInput('page', 1), $candidates, ZBX_SORT_UP,
 			(new CUrl('zabbix.php'))->setArgument('action', 'docker.cleanup')
@@ -146,11 +309,83 @@ class CControllerDockerCleanup extends CController {
 			'hosts' => $candidates,
 			'totals' => $totals,
 			'hosts_scanned' => count($hosts),
-			'paging' => $paging
+			'paging' => $paging,
+			'filter' => [
+				'name' => $filter_name,
+				'groupids' => $groups ? array_keys($groups) : [],
+				'groups' => array_map(
+					static fn (array $group): array => ['id' => $group['groupid'], 'name' => $group['name']],
+					array_values($groups)
+				),
+				'problems' => $filter_problems,
+				'docker_problems' => $filter_docker_problems,
+				'container_states' => $filter_container_states,
+				'tag_evaltype' => $filter_tag_evaltype,
+				'tags' => $filter_tags
+			],
+			'sort' => $sort,
+			'sortorder' => $sortorder,
+			'active_tab' => CProfile::get('web.docker.cleanup.filter.active', 1)
 		]);
 		$response->setTitle(_('Docker Cleanup'));
 
 		$this->setResponse($response);
+	}
+
+	private function filterHostidsByContainerStates(array $hostids, array $states): array {
+		$keys = [
+			'docker.containers.running' => 'running',
+			'docker.containers.stopped' => 'stopped',
+			'docker.containers.paused' => 'paused',
+			'lxp.docker.sum_unhealthy' => 'unhealthy'
+		];
+		$metrics = array_fill_keys($hostids, array_fill_keys(array_values($keys), null));
+		$items = API::Item()->get([
+			'output' => ['hostid', 'key_', 'lastvalue', 'lastclock'],
+			'hostids' => $hostids,
+			'filter' => ['key_' => array_keys($keys)],
+			'monitored' => true
+		]);
+
+		foreach ($items as $item) {
+			if (DockerCollector::hasRecentValue($item)) {
+				$metrics[$item['hostid']][$keys[$item['key_']]] = (int) $item['lastvalue'];
+			}
+		}
+
+		return array_keys(array_filter($metrics, static function (array $values) use ($states): bool {
+			foreach ($states as $state) {
+				$matches = match ($state) {
+					'stopped' => $values['stopped'] !== null && $values['stopped'] > 0,
+					'paused' => $values['paused'] !== null && $values['paused'] > 0,
+					'unhealthy' => $values['unhealthy'] !== null && $values['unhealthy'] > 0,
+					'no_running' => $values['running'] !== null && $values['running'] === 0,
+					default => false
+				};
+
+				if ($matches) {
+					return true;
+				}
+			}
+
+			return false;
+		}));
+	}
+
+	private function sortCandidates(array &$candidates, string $sort, string $sortorder): void {
+		usort($candidates, static function (array $a, array $b) use ($sort, $sortorder): int {
+			$left = $sort === 'notes' ? (string) ($a['inventory']['notes'] ?? '') : $a[$sort];
+			$right = $sort === 'notes' ? (string) ($b['inventory']['notes'] ?? '') : $b[$sort];
+			$comparison = in_array($sort, ['name', 'notes'], true)
+				? strnatcasecmp((string) $left, (string) $right)
+				: $left <=> $right;
+
+			if ($comparison === 0) {
+				$comparison = strnatcasecmp($a['name'], $b['name']);
+			}
+
+			return $sortorder === ZBX_SORT_DOWN ? -$comparison : $comparison;
+		});
 	}
 
 	private function summarizeHost(array $items): array {
@@ -160,8 +395,9 @@ class CControllerDockerCleanup extends CController {
 		$data_usage = $this->dataset($data_usage_item);
 		$raw_containers = is_array($data_usage['Containers'] ?? null) ? $data_usage['Containers'] : [];
 		$raw_volumes = is_array($data_usage['Volumes'] ?? null) ? $data_usage['Volumes'] : [];
-		$containers = $data_usage_item !== null ? $raw_containers : ($items['containers'] ?? []);
+		$containers = $data_usage_item !== null ? $raw_containers : [];
 		$volumes = $data_usage_item !== null ? $raw_volumes : $this->dataset($items['volumes'] ?? null);
+		$stopped_item = $items['stopped'] ?? null;
 		$used_image_ids = [];
 
 		foreach ($raw_containers as $container) {
@@ -185,19 +421,20 @@ class CControllerDockerCleanup extends CController {
 			$bytes += max(0.0, (float) ($image['Size'] ?? 0));
 		}
 
-		foreach ($containers as $container) {
-			if (!is_array($container)) {
-				continue;
+		if ($data_usage_item === null && $stopped_item !== null) {
+			$container_count = max(0, (int) $stopped_item['lastvalue']);
+		}
+		else {
+			foreach ($containers as $container) {
+				if (!is_array($container)
+						|| !in_array(strtolower((string) ($container['State'] ?? '')),
+							self::REMOVABLE_CONTAINER_STATES, true)) {
+					continue;
+				}
+
+				$container_count++;
+				$bytes += max(0.0, (float) ($container['SizeRw'] ?? 0));
 			}
-
-			$state = $data_usage_item !== null ? ($container['State'] ?? '') : ($container['lastvalue'] ?? '');
-
-			if (!in_array(strtolower((string) $state), self::REMOVABLE_CONTAINER_STATES, true)) {
-				continue;
-			}
-
-			$container_count++;
-			$bytes += $data_usage_item !== null ? max(0.0, (float) ($container['SizeRw'] ?? 0)) : 0.0;
 		}
 
 		foreach ($volumes as $volume) {
@@ -220,7 +457,7 @@ class CControllerDockerCleanup extends CController {
 			'bytes' => $bytes,
 			'total' => $image_count + $container_count + $volume_count,
 			'lastclock' => $lastclocks ? min($lastclocks) : 0,
-			'has_data' => (bool) ($images_item || $data_usage_item || $containers || $volumes),
+			'has_data' => (bool) ($images_item || $data_usage_item || $stopped_item || $volumes),
 			'image_data_available' => $images_item !== null
 		];
 	}

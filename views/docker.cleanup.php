@@ -2,6 +2,8 @@
 
 use Modules\MonitorDocker\Includes\DockerFormatter;
 
+$this->addJsFile('class.tagfilteritem.js');
+
 $make_stat = static function (string $label, $value): CDiv {
 	return (new CDiv([
 		(new CSpan($label))->addClass('docker-card-unit'),
@@ -22,6 +24,94 @@ $html_page = (new CHtmlPage())
 		))->setAttribute('aria-label', _('Content controls'))
 	);
 
+$filter_left = (new CFormGrid())
+	->addClass(CFormGrid::ZBX_STYLE_FORM_GRID_LABEL_WIDTH_TRUE)
+	->addItem([
+		new CLabel(_('Name or notes'), 'filter_name'),
+		new CFormField(
+			(new CTextBox('filter_name', $data['filter']['name']))
+				->setWidth(ZBX_TEXTAREA_FILTER_STANDARD_WIDTH)
+		)
+	])
+	->addItem([
+		new CLabel(_('Host groups'), 'filter_groupids__ms'),
+		new CFormField(
+			(new CMultiSelect([
+				'multiple' => true,
+				'name' => 'filter_groupids[]',
+				'object_name' => 'hostGroup',
+				'data' => $data['filter']['groups'],
+				'popup' => [
+					'parameters' => [
+						'srctbl' => 'host_groups',
+						'srcfld1' => 'groupid',
+						'dstfrm' => 'zbx_filter',
+						'dstfld1' => 'filter_groupids_',
+						'with_monitored_items' => true
+					]
+				]
+			]))->setWidth(ZBX_TEXTAREA_FILTER_STANDARD_WIDTH)
+		)
+	])
+	->addItem([
+		new CLabel(_('Container state')),
+		new CFormField(
+			(new CCheckBoxList('filter_container_states'))
+				->setOptions([
+					['label' => _('Has stopped containers'), 'value' => 'stopped'],
+					['label' => _('Has paused containers'), 'value' => 'paused'],
+					['label' => _('Has unhealthy containers'), 'value' => 'unhealthy'],
+					['label' => _('No running containers'), 'value' => 'no_running']
+				])
+				->setChecked($data['filter']['container_states'])
+				->setColumns(2)
+				->setVertical()
+		)
+	]);
+
+$filter_right = (new CFormGrid())
+	->addClass(CFormGrid::ZBX_STYLE_FORM_GRID_LABEL_WIDTH_TRUE)
+	->addItem([
+		new CLabel(_('Host tags')),
+		new CFormField(
+			CTagFilterFieldHelper::getTagFilterField([
+				'evaltype' => $data['filter']['tag_evaltype'],
+				'tags' => $data['filter']['tags'] ?: [
+					['tag' => '', 'operator' => TAG_OPERATOR_LIKE, 'value' => '']
+				]
+			], [
+				'evaltype_field_name' => 'filter_tag_evaltype'
+			])
+		)
+	])
+	->addItem([
+		new CLabel(_('Problems'), 'filter_problems'),
+		new CFormField(
+			(new CCheckBox('filter_problems', 1))
+				->setLabel(_('Show only hosts with problems'))
+				->setChecked((int) $data['filter']['problems'] === 1)
+				->setUncheckedValue(0)
+		)
+	])
+	->addItem([
+		new CLabel(_('Docker template'), 'filter_docker_problems'),
+		new CFormField(
+			(new CCheckBox('filter_docker_problems', 1))
+				->setLabel(_('Show only hosts with Docker template problems'))
+				->setChecked((int) $data['filter']['docker_problems'] === 1)
+				->setUncheckedValue(0)
+		)
+	]);
+
+$html_page->addItem(
+	(new CFilter())
+		->setResetUrl(new CUrl('zabbix.php?action=docker.cleanup'))
+		->setProfile('web.docker.cleanup.filter')
+		->setActiveTab($data['active_tab'])
+		->addVar('action', 'docker.cleanup')
+		->addFilterTab(_('Filter'), [$filter_left, $filter_right])
+);
+
 $html_page->addItem(
 	(new CDiv([
 		$make_stat(_('Hosts with candidates'), $data['totals']['hosts']),
@@ -36,21 +126,24 @@ $html_page->addItem(
 
 $html_page->addItem(
 	(new CDiv(sprintf(
-		_('Read-only candidates from retained Docker items. Data is available for %1$s of %2$s Docker hosts. Exact dangling-image detection is available for %3$s hosts because the stock template does not retain the raw image inventory.'),
+		_('Read-only candidates from retained Docker items. Data is available for %1$s of %2$s Docker hosts. Stopped-container counts use the retained host metric. Exact dangling-image detection is available for %3$s hosts because the stock template does not retain the raw image inventory.'),
 		$data['totals']['hosts_with_data'],
 		$data['hosts_scanned'],
 		$data['totals']['hosts_with_image_data']
 	)))->addClass('docker-cleanup-note')
 );
 
+$sort_url = (new CUrl('zabbix.php'))->setArgument('action', 'docker.cleanup');
+
 $table = (new CTableInfo())
 	->setHeader([
-		_('Docker host'),
-		_('Dangling images'),
-		_('Stopped containers'),
-		_('Unused volumes'),
-		_('Potentially reclaimable'),
-		_('Updated')
+		make_sorting_header(_('Docker host'), 'name', $data['sort'], $data['sortorder'], $sort_url),
+		make_sorting_header(_('Notes'), 'notes', $data['sort'], $data['sortorder'], $sort_url),
+		make_sorting_header(_('Dangling images'), 'images', $data['sort'], $data['sortorder'], $sort_url),
+		make_sorting_header(_('Stopped containers'), 'containers', $data['sort'], $data['sortorder'], $sort_url),
+		make_sorting_header(_('Unused volumes'), 'volumes', $data['sort'], $data['sortorder'], $sort_url),
+		make_sorting_header(_('Potentially reclaimable'), 'bytes', $data['sort'], $data['sortorder'], $sort_url),
+		make_sorting_header(_('Updated'), 'lastclock', $data['sort'], $data['sortorder'], $sort_url)
 	])
 	->setNoDataMessage(_('No cleanup candidates found in the retained Docker data. A host without retained image, container-state or volume data is not treated as clean.'));
 
@@ -62,6 +155,7 @@ foreach ($data['hosts'] as $host) {
 
 	$table->addRow([
 		(new CLink($host['name'], $detail_url))->addClass('docker-name'),
+		$host['inventory']['notes'] ?? '',
 		$host['image_data_available'] ? $host['images'] : '—',
 		$host['containers'],
 		$host['volumes'],
