@@ -82,7 +82,7 @@ $html_page->addItem(
 $html_page->addItem(
 	(new CDiv([
 		$make_stat(_('Hosts with candidates'), $data['totals']['hosts']),
-		$make_stat(_('Dangling images'), $data['totals']['hosts_with_image_data'] > 0
+		$make_stat(_('Unused images'), $data['totals']['hosts_with_image_data'] > 0
 			? $data['totals']['images']
 			: '—'),
 		$make_stat(_('Stopped containers'), $data['totals']['containers']),
@@ -93,7 +93,7 @@ $html_page->addItem(
 
 $html_page->addItem(
 	(new CDiv(sprintf(
-		_('Read-only candidates from retained Docker items. Data is available for %1$s of %2$s Docker hosts. Stopped-container counts use the retained host metric. Dangling-image detection follows the Images tab for %3$s hosts with complete container-to-image matching.'),
+		_('Read-only candidates from retained Docker items. Data is available for %1$s of %2$s Docker hosts. Stopped-container counts use the retained host metric. Unused-image detection follows the Images tab for %3$s hosts with complete container-to-image matching.'),
 		$data['totals']['hosts_with_data'],
 		$data['hosts_scanned'],
 		$data['totals']['hosts_with_image_data']
@@ -106,7 +106,7 @@ $table = (new CTableInfo())
 	->setHeader([
 		make_sorting_header(_('Docker host'), 'name', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
 		make_sorting_header(_('Notes'), 'notes', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
-		make_sorting_header(_('Dangling images'), 'images', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
+		make_sorting_header(_('Unused images'), 'images', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
 		make_sorting_header(_('Stopped containers'), 'containers', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
 		make_sorting_header(_('Unused volumes'), 'volumes', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
 		make_sorting_header(_('Potentially reclaimable'), 'bytes', $data['sort'], $data['sortorder'], $sort_url->getUrl()),

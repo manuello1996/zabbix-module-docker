@@ -378,8 +378,7 @@ class CControllerDockerCleanup extends CController {
 
 		if ($images_item !== null) {
 			foreach ($images as $image) {
-				if (!is_array($image) || !$this->isDanglingImage($image)
-						|| array_key_exists($this->imageId($image['Id'] ?? ''), $used_image_ids)) {
+				if (!is_array($image) || array_key_exists($this->imageId($image['Id'] ?? ''), $used_image_ids)) {
 					continue;
 				}
 
@@ -488,8 +487,7 @@ class CControllerDockerCleanup extends CController {
 		$bytes = 0.0;
 
 		foreach ($images as $image_key => $image) {
-			if ($this->isDanglingImageName((string) ($image['name'] ?? ''))
-					&& !array_key_exists($image_key, $used_images)) {
+			if (!array_key_exists($image_key, $used_images)) {
 				$count++;
 				$bytes += max(0.0, (float) ($image['size'] ?? 0));
 			}
@@ -510,21 +508,6 @@ class CControllerDockerCleanup extends CController {
 
 	private function imageId($image_id): string {
 		return strtolower((string) preg_replace('/^sha256:/', '', (string) $image_id));
-	}
-
-	private function isDanglingImage(array $image): bool {
-		$tags = $image['RepoTags'] ?? [];
-
-		if (!is_array($tags) || $tags === []) {
-			return true;
-		}
-
-		return array_reduce($tags, static fn (bool $dangling, $tag): bool => $dangling
-			&& in_array($tag, ['<none>', '<none>:<none>'], true), true);
-	}
-
-	private function isDanglingImageName(string $name): bool {
-		return strpos($name, '<none>') !== false;
 	}
 
 	private function lastclocks(array $items): array {

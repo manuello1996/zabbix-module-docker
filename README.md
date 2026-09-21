@@ -15,9 +15,9 @@ A Zabbix 7.0/8.0 frontend module that adds first-class Docker monitoring pages t
   - Docker-template problem matching includes templates whose visible name contains `Docker by Zabbix agent 2`
   - CSV export of every collected image older than 365 days, with Team, Host, inventory Notes, Image and creation Date columns
 - **Docker Cleanup** (the **Docker Cleanup** action on `Monitoring > Docker`)
-  - On-demand, read-only host summary of removable dangling images, stopped containers and unused volumes
-  - Uses retained container-status items and optional volume details. Exact dangling-image detection requires a
-    retained `docker.images` value; the page identifies the hosts where that inventory is unavailable
+  - On-demand, read-only host summary of unused images, stopped containers and unused volumes
+  - Uses the same retained container-to-image matching as the Images tab, plus retained container-status and
+    optional volume details; hosts with incomplete image matching are identified rather than treated as clean
   - Sorts hosts by estimated reclaimable storage without loading cleanup data on the Docker nodes overview
 - **Node detail page**
   - Host bar with availability badges (native hint popups) and compact stat pills
