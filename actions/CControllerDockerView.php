@@ -193,15 +193,13 @@ class CControllerDockerView extends CController {
 
 	private function containerDataSources(string $hostid): array {
 		$sources = [
-			['label' => _('Container inspect data'), 'key' => 'docker.container_info[',
-				'display_key' => 'docker.container_info["{#NAME}",full]'],
-			['label' => _('Container statistics'), 'key' => 'docker.container_stats[',
-				'display_key' => 'docker.container_stats["{#NAME}"]']
+			['key' => 'docker.container_info.state.status[', 'master_key' => 'docker.container_info['],
+			['key' => 'docker.container_stats.cpu_pct_usage[', 'master_key' => 'docker.container_stats[']
 		];
 
 		foreach ($sources as &$source) {
 			$items = API::Item()->get([
-				'output' => ['lastclock', 'delay'],
+				'output' => ['lastclock'],
 				'hostids' => $hostid,
 				'search' => ['key_' => $source['key']],
 				'startSearch' => true,
@@ -211,9 +209,16 @@ class CControllerDockerView extends CController {
 				static fn (array $item): int => (int) $item['lastclock'],
 				$items
 			)));
+			$master_items = API::Item()->get([
+				'output' => ['delay'],
+				'hostids' => $hostid,
+				'search' => ['key_' => $source['master_key']],
+				'startSearch' => true,
+				'monitored' => true
+			]);
 			$source['delays'] = array_values(array_unique(array_filter(array_map(
 				static fn (array $item): string => (string) $item['delay'],
-				$items
+				$master_items
 			), static fn (string $delay): bool => $delay !== '' && $delay !== '0')));
 		}
 		unset($source);

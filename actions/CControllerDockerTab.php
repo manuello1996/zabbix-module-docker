@@ -140,28 +140,24 @@ class CControllerDockerTab extends CController {
 	private function tabDataSources(string $tab): array {
 		return match ($tab) {
 			'node' => [
-				[_('Docker engine information'), 'docker.info'],
-				[_('Docker storage usage'), 'docker.data_usage']
+				['docker.ping', 'docker.ping'],
+				['docker.images_size', 'docker.data_usage']
 			],
 			'images' => [
-				[_('Docker images'), 'docker.images'],
-				[_('Container list'), 'docker.containers']
+				['docker.image.created[', 'docker.images']
 			],
-			'volumes' => [[_('Docker storage usage'), 'docker.data_usage']],
-			'mounts' => [[_('Container list'), 'docker.containers']],
+			'volumes' => [['docker.volumes.raw', 'docker.data_usage']],
+			'mounts' => [['docker.containers.mounts', 'docker.containers']],
 			'networks' => [
-				[_('Container inspect data'), 'docker.container_info[', 'docker.container_info["{#NAME}",full]'],
-				[_('Container list'), 'docker.containers']
+				['docker.container_info.networks[', 'docker.container_info[']
 			],
 			'compose' => [
-				[_('Container labels collector'), 'docker.containers.labels.raw'],
-				[_('Container inspect data'), 'docker.container_info[', 'docker.container_info["{#NAME}",full]']
+				['docker.containers.labels', 'docker.containers.labels.raw']
 			],
 			'graphs' => [
-				[_('Container inspect data'), 'docker.container_info[', 'docker.container_info["{#NAME}",full]'],
-				[_('Container statistics'), 'docker.container_stats[', 'docker.container_stats["{#NAME}"]']
+				['docker.container_stats.cpu_pct_usage[', 'docker.container_stats[']
 			],
-			'problems' => [[_('Zabbix problem data'), null, _('Live problem API')]],
+			'problems' => [[null, null]],
 			default => []
 		};
 	}
@@ -178,33 +174,20 @@ class CControllerDockerTab extends CController {
 		$is_live = false;
 
 		foreach ($sources as $source) {
-			[$label, $key] = $source;
+			[$stored_key, $master_key] = $source;
 
-			if ($key === null) {
+			if ($stored_key === null) {
 				$is_live = true;
 				continue;
 			}
 
-			$is_pattern = str_ends_with($key, '[');
-			$query = [
-				'output' => ['lastclock', 'delay'],
-				'hostids' => $hostid,
-				'monitored' => true
-			];
-
-			if ($is_pattern) {
-				$query['search'] = ['key_' => $key];
-				$query['startSearch'] = true;
-			}
-			else {
-				$query['filter'] = ['key_' => $key];
-			}
-
-			foreach (API::Item()->get($query) as $item) {
+			foreach ($this->dataSourceItems($hostid, $stored_key, ['lastclock']) as $item) {
 				if ((int) $item['lastclock'] > 0) {
 					$clocks[] = (int) $item['lastclock'];
 				}
+			}
 
+			foreach ($this->dataSourceItems($hostid, $master_key, ['delay']) as $item) {
 				if ($item['delay'] !== '' && $item['delay'] !== '0') {
 					$delays[] = (string) $item['delay'];
 				}
@@ -227,6 +210,24 @@ class CControllerDockerTab extends CController {
 			(new CSpan([_('Updated').': ', $updated])),
 			(new CSpan([_('Interval').': ', $interval]))
 		]))->addClass('docker-data-freshness');
+	}
+
+	private function dataSourceItems(string $hostid, string $key, array $output): array {
+		$query = [
+			'output' => $output,
+			'hostids' => $hostid,
+			'monitored' => true
+		];
+
+		if (str_ends_with($key, '[')) {
+			$query['search'] = ['key_' => $key];
+			$query['startSearch'] = true;
+		}
+		else {
+			$query['filter'] = ['key_' => $key];
+		}
+
+		return API::Item()->get($query);
 	}
 
 	private function makeNodePanel(string $hostid): CDiv {
