@@ -52,21 +52,6 @@ $filter_left = (new CFormGrid())
 				]
 			]))->setWidth(ZBX_TEXTAREA_FILTER_STANDARD_WIDTH)
 		)
-	])
-	->addItem([
-		new CLabel(_('Container state')),
-		new CFormField(
-			(new CCheckBoxList('filter_container_states'))
-				->setOptions([
-					['label' => _('Has stopped containers'), 'value' => 'stopped'],
-					['label' => _('Has paused containers'), 'value' => 'paused'],
-					['label' => _('Has unhealthy containers'), 'value' => 'unhealthy'],
-					['label' => _('No running containers'), 'value' => 'no_running']
-				])
-				->setChecked($data['filter']['container_states'])
-				->setColumns(2)
-				->setVertical()
-		)
 	]);
 
 $filter_right = (new CFormGrid())
@@ -82,24 +67,6 @@ $filter_right = (new CFormGrid())
 			], [
 				'evaltype_field_name' => 'filter_tag_evaltype'
 			])
-		)
-	])
-	->addItem([
-		new CLabel(_('Problems'), 'filter_problems'),
-		new CFormField(
-			(new CCheckBox('filter_problems', 1))
-				->setLabel(_('Show only hosts with problems'))
-				->setChecked((int) $data['filter']['problems'] === 1)
-				->setUncheckedValue(0)
-		)
-	])
-	->addItem([
-		new CLabel(_('Docker template'), 'filter_docker_problems'),
-		new CFormField(
-			(new CCheckBox('filter_docker_problems', 1))
-				->setLabel(_('Show only hosts with Docker template problems'))
-				->setChecked((int) $data['filter']['docker_problems'] === 1)
-				->setUncheckedValue(0)
 		)
 	]);
 
@@ -126,7 +93,7 @@ $html_page->addItem(
 
 $html_page->addItem(
 	(new CDiv(sprintf(
-		_('Read-only candidates from retained Docker items. Data is available for %1$s of %2$s Docker hosts. Stopped-container counts use the retained host metric. Exact dangling-image detection is available for %3$s hosts because the stock template does not retain the raw image inventory.'),
+		_('Read-only candidates from retained Docker items. Data is available for %1$s of %2$s Docker hosts. Stopped-container counts use the retained host metric. Dangling-image detection follows the Images tab for %3$s hosts with complete container-to-image matching.'),
 		$data['totals']['hosts_with_data'],
 		$data['hosts_scanned'],
 		$data['totals']['hosts_with_image_data']

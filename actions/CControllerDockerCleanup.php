@@ -16,9 +16,6 @@ use Modules\MonitorDocker\Includes\DockerCollector;
 class CControllerDockerCleanup extends CController {
 	private const PROFILE_GROUPIDS = 'web.docker.cleanup.filter.groupids';
 	private const PROFILE_NAME = 'web.docker.cleanup.filter.name';
-	private const PROFILE_PROBLEMS = 'web.docker.cleanup.filter.problems';
-	private const PROFILE_DOCKER_PROBLEMS = 'web.docker.cleanup.filter.docker_problems';
-	private const PROFILE_CONTAINER_STATES = 'web.docker.cleanup.filter.container_states';
 	private const PROFILE_TAG_EVALTYPE = 'web.docker.cleanup.filter.tag_evaltype';
 	private const PROFILE_TAGS_TAG = 'web.docker.cleanup.filter.tags.tag';
 	private const PROFILE_TAGS_VALUE = 'web.docker.cleanup.filter.tags.value';
@@ -42,9 +39,13 @@ class CControllerDockerCleanup extends CController {
 		'docker.volumes.raw'
 	];
 
-	private const REMOVABLE_CONTAINER_STATES = ['created', 'dead', 'exited'];
+	private const IMAGE_USAGE_ITEM_PREFIXES = [
+		'docker.containers.image_usage',
+		'docker.image.size[',
+		'docker.container_info.image_id['
+	];
 
-	private const FILTER_CONTAINER_STATES = ['stopped', 'paused', 'unhealthy', 'no_running'];
+	private const REMOVABLE_CONTAINER_STATES = ['created', 'dead', 'exited'];
 
 	private const SORT_FIELDS = ['name', 'notes', 'images', 'containers', 'volumes', 'bytes', 'lastclock'];
 
@@ -56,9 +57,6 @@ class CControllerDockerCleanup extends CController {
 		$ret = $this->validateInput([
 			'filter_name' => 'string',
 			'filter_groupids' => 'array_id',
-			'filter_problems' => 'in 0,1',
-			'filter_docker_problems' => 'in 0,1',
-			'filter_container_states' => 'array',
 			'filter_tag_evaltype' => 'in '.TAG_EVAL_TYPE_AND_OR.','.TAG_EVAL_TYPE_OR,
 			'filter_tags' => 'array',
 			'filter_set' => 'in 1',
@@ -67,15 +65,6 @@ class CControllerDockerCleanup extends CController {
 			'sortorder' => 'in '.ZBX_SORT_UP.','.ZBX_SORT_DOWN,
 			'page' => 'ge 1'
 		]);
-
-		if ($ret && $this->hasInput('filter_container_states')) {
-			foreach ($this->getInput('filter_container_states') as $state) {
-				if (!is_string($state) || !in_array($state, self::FILTER_CONTAINER_STATES, true)) {
-					$ret = false;
-					break;
-				}
-			}
-		}
 
 		if ($ret && $this->hasInput('filter_tags')) {
 			foreach ($this->getInput('filter_tags') as $tag) {
@@ -108,9 +97,6 @@ class CControllerDockerCleanup extends CController {
 		if ($this->hasInput('filter_rst')) {
 			CProfile::deleteIdx(self::PROFILE_GROUPIDS);
 			CProfile::delete(self::PROFILE_NAME);
-			CProfile::delete(self::PROFILE_PROBLEMS);
-			CProfile::delete(self::PROFILE_DOCKER_PROBLEMS);
-			CProfile::deleteIdx(self::PROFILE_CONTAINER_STATES);
 			CProfile::delete(self::PROFILE_TAG_EVALTYPE);
 			CProfile::deleteIdx(self::PROFILE_TAGS_TAG);
 			CProfile::deleteIdx(self::PROFILE_TAGS_VALUE);
@@ -119,13 +105,6 @@ class CControllerDockerCleanup extends CController {
 		elseif ($this->hasInput('filter_set')) {
 			CProfile::update(self::PROFILE_NAME, $this->getInput('filter_name', ''), PROFILE_TYPE_STR);
 			CProfile::updateArray(self::PROFILE_GROUPIDS, $this->getInput('filter_groupids', []), PROFILE_TYPE_ID);
-			CProfile::update(self::PROFILE_PROBLEMS, (int) $this->getInput('filter_problems', 0), PROFILE_TYPE_INT);
-			CProfile::update(self::PROFILE_DOCKER_PROBLEMS, (int) $this->getInput('filter_docker_problems', 0),
-				PROFILE_TYPE_INT
-			);
-			CProfile::updateArray(self::PROFILE_CONTAINER_STATES,
-				$this->getInput('filter_container_states', []), PROFILE_TYPE_STR
-			);
 			CProfile::update(self::PROFILE_TAG_EVALTYPE,
 				(int) $this->getInput('filter_tag_evaltype', TAG_EVAL_TYPE_AND_OR), PROFILE_TYPE_INT
 			);
@@ -156,9 +135,6 @@ class CControllerDockerCleanup extends CController {
 
 		$filter_name = (string) CProfile::get(self::PROFILE_NAME, '');
 		$groupids = CProfile::getArray(self::PROFILE_GROUPIDS, []);
-		$filter_problems = (int) CProfile::get(self::PROFILE_PROBLEMS, 0);
-		$filter_docker_problems = (int) CProfile::get(self::PROFILE_DOCKER_PROBLEMS, 0);
-		$filter_container_states = CProfile::getArray(self::PROFILE_CONTAINER_STATES, []);
 		$filter_tag_evaltype = (int) CProfile::get(self::PROFILE_TAG_EVALTYPE, TAG_EVAL_TYPE_AND_OR);
 		$filter_tags = [];
 
@@ -206,17 +182,6 @@ class CControllerDockerCleanup extends CController {
 			}
 
 			$hostids = array_keys($filter_candidates);
-		}
-
-		if ($filter_container_states && $hostids) {
-			$hostids = $this->filterHostidsByContainerStates($hostids, $filter_container_states);
-		}
-
-		if (($filter_problems || $filter_docker_problems) && $hostids) {
-			$problem_hosts = $filter_docker_problems
-				? DockerCollector::dockerTemplateProblemsByHosts($hostids)
-				: DockerCollector::problemsByHosts($hostids);
-			$hostids = array_values(array_intersect($hostids, array_keys($problem_hosts)));
 		}
 
 		$hosts = $hostids
@@ -271,6 +236,47 @@ class CControllerDockerCleanup extends CController {
 			}
 		}
 
+		/* Same persisted-data join used by the Images tab; no live Docker calls. */
+		$image_usage_hostids = array_keys(array_filter($hosts,
+			static fn (array $host): bool => !isset($datasets[$host['hostid']]['docker.images'])
+		));
+		$image_usage_items = $image_usage_hostids
+			? API::Item()->get([
+				'output' => ['hostid', 'name', 'key_', 'lastvalue', 'lastclock'],
+				'hostids' => $image_usage_hostids,
+				'search' => ['key_' => self::IMAGE_USAGE_ITEM_PREFIXES],
+				'searchByAny' => true,
+				'startSearch' => true,
+				'monitored' => true
+			])
+			: [];
+
+		foreach ($image_usage_items as $item) {
+			if (!DockerCollector::hasRecentValue($item)) {
+				continue;
+			}
+
+			if ($item['key_'] === 'docker.containers.image_usage') {
+				$datasets[$item['hostid']]['image_usage'] = $item;
+				continue;
+			}
+
+			if (preg_match('/^docker\\.image\\.size\\["?([^"\\]]+)"?\\]$/', $item['key_'], $matches) === 1) {
+				$image_id = $this->imageId($matches[1]);
+				$datasets[$item['hostid']]['discovered_images'][$image_id] = [
+					'id' => $image_id,
+					'name' => preg_replace('/^Image\\s+|:\\s+[^:]+$/u', '', $item['name']),
+					'size' => max(0.0, (float) $item['lastvalue'])
+				];
+				continue;
+			}
+
+			if (preg_match('/^docker\\.container_info\\.image_id\\["?\\/?([^"\\]]+)"?\\]$/',
+					$item['key_'], $matches) === 1) {
+				$datasets[$item['hostid']]['container_image_ids'][$matches[1]] = $item['lastvalue'];
+			}
+		}
+
 		$candidates = [];
 		$totals = [
 			'hosts' => 0,
@@ -317,9 +323,6 @@ class CControllerDockerCleanup extends CController {
 					static fn (array $group): array => ['id' => $group['groupid'], 'name' => $group['name']],
 					array_values($groups)
 				),
-				'problems' => $filter_problems,
-				'docker_problems' => $filter_docker_problems,
-				'container_states' => $filter_container_states,
 				'tag_evaltype' => $filter_tag_evaltype,
 				'tags' => $filter_tags
 			],
@@ -330,46 +333,6 @@ class CControllerDockerCleanup extends CController {
 		$response->setTitle(_('Docker Cleanup'));
 
 		$this->setResponse($response);
-	}
-
-	private function filterHostidsByContainerStates(array $hostids, array $states): array {
-		$keys = [
-			'docker.containers.running' => 'running',
-			'docker.containers.stopped' => 'stopped',
-			'docker.containers.paused' => 'paused',
-			'lxp.docker.sum_unhealthy' => 'unhealthy'
-		];
-		$metrics = array_fill_keys($hostids, array_fill_keys(array_values($keys), null));
-		$items = API::Item()->get([
-			'output' => ['hostid', 'key_', 'lastvalue', 'lastclock'],
-			'hostids' => $hostids,
-			'filter' => ['key_' => array_keys($keys)],
-			'monitored' => true
-		]);
-
-		foreach ($items as $item) {
-			if (DockerCollector::hasRecentValue($item)) {
-				$metrics[$item['hostid']][$keys[$item['key_']]] = (int) $item['lastvalue'];
-			}
-		}
-
-		return array_keys(array_filter($metrics, static function (array $values) use ($states): bool {
-			foreach ($states as $state) {
-				$matches = match ($state) {
-					'stopped' => $values['stopped'] !== null && $values['stopped'] > 0,
-					'paused' => $values['paused'] !== null && $values['paused'] > 0,
-					'unhealthy' => $values['unhealthy'] !== null && $values['unhealthy'] > 0,
-					'no_running' => $values['running'] !== null && $values['running'] === 0,
-					default => false
-				};
-
-				if ($matches) {
-					return true;
-				}
-			}
-
-			return false;
-		}));
 	}
 
 	private function sortCandidates(array &$candidates, string $sort, string $sortorder): void {
@@ -391,6 +354,7 @@ class CControllerDockerCleanup extends CController {
 	private function summarizeHost(array $items): array {
 		$images_item = $items['docker.images'] ?? null;
 		$data_usage_item = $items['docker.data_usage'] ?? null;
+		$image_usage_item = $items['image_usage'] ?? null;
 		$images = $this->dataset($images_item);
 		$data_usage = $this->dataset($data_usage_item);
 		$raw_containers = is_array($data_usage['Containers'] ?? null) ? $data_usage['Containers'] : [];
@@ -410,15 +374,26 @@ class CControllerDockerCleanup extends CController {
 		$container_count = 0;
 		$volume_count = 0;
 		$bytes = 0.0;
+		$image_data_available = $images_item !== null;
 
-		foreach ($images as $image) {
-			if (!is_array($image) || !$this->isDanglingImage($image)
-					|| array_key_exists($this->imageId($image['Id'] ?? ''), $used_image_ids)) {
-				continue;
+		if ($images_item !== null) {
+			foreach ($images as $image) {
+				if (!is_array($image) || !$this->isDanglingImage($image)
+						|| array_key_exists($this->imageId($image['Id'] ?? ''), $used_image_ids)) {
+					continue;
+				}
+
+				$image_count++;
+				$bytes += max(0.0, (float) ($image['Size'] ?? 0));
 			}
-
-			$image_count++;
-			$bytes += max(0.0, (float) ($image['Size'] ?? 0));
+		}
+		elseif ($image_usage_item !== null) {
+			[$image_count, $image_bytes, $image_data_available] = $this->summarizeDiscoveredImages(
+				$items['discovered_images'] ?? [],
+				$this->dataset($image_usage_item),
+				$items['container_image_ids'] ?? []
+			);
+			$bytes += $image_bytes;
 		}
 
 		if ($data_usage_item === null && $stopped_item !== null) {
@@ -457,9 +432,70 @@ class CControllerDockerCleanup extends CController {
 			'bytes' => $bytes,
 			'total' => $image_count + $container_count + $volume_count,
 			'lastclock' => $lastclocks ? min($lastclocks) : 0,
-			'has_data' => (bool) ($images_item || $data_usage_item || $stopped_item || $volumes),
-			'image_data_available' => $images_item !== null
+			'has_data' => (bool) ($images_item || $image_usage_item || $data_usage_item || $stopped_item || $volumes),
+			'image_data_available' => $image_data_available
 		];
+	}
+
+	private function summarizeDiscoveredImages(array $images, array $containers, array $container_image_ids): array {
+		$image_ids = [];
+		$image_names = [];
+		$used_images = [];
+		$container_count = 0;
+		$matched_containers = 0;
+
+		foreach ($images as $image_key => $image) {
+			$image_ids[$this->imageId($image['id'] ?? $image_key)] = $image_key;
+			$image_names[(string) ($image['name'] ?? '')] = $image_key;
+		}
+
+		foreach ($containers as $container) {
+			if (!is_array($container)) {
+				continue;
+			}
+
+			$names = array_values(array_filter(
+				array_map(static fn ($name): string => ltrim((string) $name, '/'), (array) ($container['Names'] ?? [])),
+				'strlen'
+			));
+
+			if (!$names) {
+				continue;
+			}
+
+			$container_count++;
+			$container_name = $names[0];
+			$image_id = (string) ($container['ImageID'] ?? $container_image_ids[$container_name] ?? '');
+			$normalized_id = $this->imageId($image_id);
+			$image_ref = (string) ($container['Image'] ?? '');
+			$image_key = $normalized_id !== '' && array_key_exists($normalized_id, $image_ids)
+				? $image_ids[$normalized_id]
+				: ($image_names[$image_ref] ?? null);
+
+			if ($image_key === null) {
+				continue;
+			}
+
+			$matched_containers++;
+			$used_images[$image_key] = true;
+		}
+
+		if ($container_count !== $matched_containers) {
+			return [0, 0.0, false];
+		}
+
+		$count = 0;
+		$bytes = 0.0;
+
+		foreach ($images as $image_key => $image) {
+			if ($this->isDanglingImageName((string) ($image['name'] ?? ''))
+					&& !array_key_exists($image_key, $used_images)) {
+				$count++;
+				$bytes += max(0.0, (float) ($image['size'] ?? 0));
+			}
+		}
+
+		return [$count, $bytes, true];
 	}
 
 	private function dataset(?array $item): array {
@@ -485,6 +521,10 @@ class CControllerDockerCleanup extends CController {
 
 		return array_reduce($tags, static fn (bool $dangling, $tag): bool => $dangling
 			&& in_array($tag, ['<none>', '<none>:<none>'], true), true);
+	}
+
+	private function isDanglingImageName(string $name): bool {
+		return strpos($name, '<none>') !== false;
 	}
 
 	private function lastclocks(array $items): array {
