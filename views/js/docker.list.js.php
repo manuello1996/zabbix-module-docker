@@ -130,7 +130,7 @@ window.monitor_docker_list = new class {
 	}
 
 	_reload() {
-		const url = new Curl('zabbix.php');
+		const url = new Curl(location.href);
 
 		url.setArgument('action', 'docker.list');
 

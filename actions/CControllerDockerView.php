@@ -6,13 +6,12 @@ use API;
 use CController;
 use CControllerResponseData;
 use CControllerResponseFatal;
-use CPagerHelper;
 use CProfile;
 use CRoleHelper;
 use CSettingsHelper;
-use CUrl;
 use CWebUser;
 use Modules\MonitorDocker\Includes\DockerCollector;
+use Modules\MonitorDocker\Includes\DockerTablePreferences;
 
 class CControllerDockerView extends CController {
 	public const PROFILE_GROUPIDS = 'web.docker.filter.groupids';
@@ -95,7 +94,8 @@ class CControllerDockerView extends CController {
 			])
 			: [];
 
-		if ($hostid !== '' && !array_key_exists($hostid, $hosts)) {
+		// Validate against all eligible Docker hosts, independently of the display limit.
+		if ($hostid !== '' && !array_key_exists($hostid, array_flip($docker_hostids))) {
 			$hostid = '';
 		}
 
@@ -148,6 +148,7 @@ class CControllerDockerView extends CController {
 				'groups' => array_values($groups),
 				'hostid' => $hostid
 			],
+			'table_preferences' => DockerTablePreferences::get(),
 			'timeline' => getTimeSelectorPeriod($timeselector_options),
 
 			'active_tab' => CProfile::get('web.docker.filter.active', 0),
@@ -179,10 +180,7 @@ class CControllerDockerView extends CController {
 			}
 
 			$data['containers_total'] = count($data['containers']);
-
-			$data['paging'] = CPagerHelper::paginate((int) $this->getInput('page', 1), $data['containers'],
-				ZBX_SORT_UP, (new CUrl('zabbix.php'))->setArgument('action', 'docker.view')
-			);
+			// Keep every container for client-side filtering, sorting and pagination.
 		}
 
 		$response = new CControllerResponseData($data);

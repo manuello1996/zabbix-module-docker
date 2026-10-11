@@ -47,6 +47,10 @@
 		"docker.integration": {
 			"class": "CControllerDockerIntegration",
 			"layout": "layout.json"
+		},
+		"docker.preferences": {
+			"class": "CControllerDockerPreferences",
+			"layout": "layout.json"
 		}
 	},
 	"assets": {

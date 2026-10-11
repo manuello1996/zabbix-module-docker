@@ -1,5 +1,9 @@
 <?php declare(strict_types = 0);
 
+use Modules\MonitorDocker\Includes\DockerImageAge;
+
+$image_age = DockerImageAge::get();
+
 $this->addJsFile('class.tagfilteritem.js');
 $this->includeJsFile('docker.list.js.php', ['refresh_interval' => $data['refresh_interval']]);
 
@@ -26,7 +30,7 @@ $html_page = (new CHtmlPage())
 				))
 				->addItem(
 					(new CRedirectButton(
-						_('Export images older than 365 days (CSV)'),
+						sprintf(_('Export images older than %1$s (CSV)'), $image_age['label']),
 						(new CUrl('zabbix.php'))->setArgument('action', 'docker.images.csv')
 					))->addClass(ZBX_STYLE_BTN_ALT)
 				)
@@ -114,6 +118,7 @@ $filter_right = (new CFormGrid())
 
 $html_page->addItem(
 	(new CFilter())
+		->setAttribute('data-docker-filter', $data['filter'])
 		->setResetUrl(new CUrl('zabbix.php?action=docker.list'))
 		->setProfile('web.docker.list.filter')
 		->setActiveTab($data['active_tab'])

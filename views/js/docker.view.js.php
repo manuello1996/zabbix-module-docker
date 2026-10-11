@@ -2,15 +2,22 @@
 ?>
 <script>
 window.monitor_docker = new class {
-	init({hostid}) {
-		this._hostid = hostid;
+	init({hostid, groupids = [], timeline = {}, preferences = {page_size: 25, sort: 'name', dir: 1, columns: ['name', 'note', 'uptime', 'health', 'cpu', 'memory', 'network']}}) {
+		this._hostid = String(hostid);
+		this._groupids = groupids;
+		this._timeline = timeline;
+		this._preference_timer = null;
+		this._preference_request = Promise.resolve();
+		this._preference_revision = 0;
 		this._panel = null;
 		this._content = null;
 		this._tab_cache = new Map();
 		this._tab_pages = new Map();
 		this._problem_pages = new Map([['docker', '1'], ['other', '1']]);
-		this._table_state = {search: '', status: 'all', health: 'all', sort: null, dir: 1, page: 1};
-		this._page_size = 25;
+		this._table_state = {search: '', status: 'all', health: 'all', sort: preferences.sort, dir: preferences.dir, page: 1};
+		this._page_size = preferences.page_size;
+		this._columns = [...preferences.columns];
+		this._restoreUrl();
 		this._search_debounce = null;
 		this._image_filter_debounce = null;
 		this._image_sort = {field: null, dir: 1};
@@ -30,6 +37,9 @@ window.monitor_docker = new class {
 		this._initEditShim();
 		this._initTopbar();
 		this._initHostFilter();
+		this._syncTableControls();
+		const requested_tab = new URLSearchParams(location.search).get('tab') ?? 'docker';
+		document.querySelector(`.docker-tab[data-tab="${this._validTab(requested_tab)}"]`)?.click();
 
 		const requested_container = new URLSearchParams(location.search).get('container');
 
@@ -37,7 +47,11 @@ window.monitor_docker = new class {
 			this._openContainerModal(requested_container, null);
 		}
 
-		jQuery.subscribe('timeselector.rangeupdate', () => {
+		jQuery.subscribe('timeselector.rangeupdate', (event, data) => {
+			if (data?.from && data?.to) {
+				this._timeline = {...this._timeline, from: data.from, to: data.to};
+			}
+			this._syncUrl();
 			this._tab_cache.delete('graphs');
 
 			const active = document.querySelector('.docker-tab-active');
@@ -68,6 +82,177 @@ window.monitor_docker = new class {
 			}, 300);
 		});
 
+	}
+
+	_validTab(tab) {
+		return ['compose', 'problems', 'graphs', 'images', 'volumes', 'mounts', 'networks', 'node'].includes(tab)
+			? tab : '';
+	}
+
+	_restoreUrl() {
+		const params = new URLSearchParams(location.search);
+		this._table_state.search = (params.get('search') ?? '').trim().toLowerCase();
+		for (const [key, values] of Object.entries({
+			status: ['all', 'running', 'restarting', 'paused', 'exited'],
+			health: ['all', 'healthy', 'unhealthy', 'starting', 'none'],
+			sort: ['name', 'cpu', 'memory']
+		})) {
+			if (values.includes(params.get(key))) {
+				this._table_state[key] = params.get(key);
+			}
+		}
+		if (['-1', '1'].includes(params.get('sort_dir'))) {
+			this._table_state.dir = Number(params.get('sort_dir'));
+		}
+		if ([10, 25, 50, 100].includes(Number(params.get('page_size')))) {
+			this._page_size = Number(params.get('page_size'));
+		}
+		const page = params.get('container_page');
+		if (/^[1-9]\d*$/.test(page ?? '') && Number.isSafeInteger(Number(page))) {
+			this._table_state.page = Number(page);
+		}
+		const allowed_columns = ['name', 'note', 'uptime', 'health', 'cpu', 'memory', 'network'];
+		const columns = params.get('columns')?.split(',');
+		if (columns?.includes('name') && columns.every((column) => allowed_columns.includes(column))) {
+			this._columns = [...new Set(columns)];
+		}
+		const tab = this._validTab(params.get('tab'));
+		if (/^[1-9]\d*$/.test(params.get('panel_page') ?? '')) {
+			this._tab_pages.set(tab, params.get('panel_page'));
+		}
+		for (const section of ['docker', 'other']) {
+			if (/^[1-9]\d*$/.test(params.get(section + '_page') ?? '')) {
+				this._problem_pages.set(section, params.get(section + '_page'));
+			}
+		}
+		this._panel_filters = Object.fromEntries(['images_name', 'images_usage', 'graphs_search']
+			.map((key) => [key, params.get(key) ?? '']));
+	}
+
+	_syncUrl() {
+		if (this._hostid === '') {
+			return;
+		}
+		const url = new URL(location.href);
+		for (const key of [...url.searchParams.keys()]) {
+			if (key.startsWith('filter_') || key === 'page' || key === <?= json_encode(CSRF_TOKEN_NAME) ?>) {
+				url.searchParams.delete(key);
+			}
+		}
+		url.searchParams.set('filter_set', '1');
+		url.searchParams.set('filter_hostid[]', this._hostid);
+		for (const groupid of this._groupids) {
+			url.searchParams.append('filter_groupids[]', groupid);
+		}
+		const tab = document.querySelector('.docker-tab-active')?.dataset.tab ?? '';
+		const state = this._table_state;
+		for (const [key, value] of Object.entries({
+			tab: tab || 'docker', search: state.search, status: state.status, health: state.health,
+			sort: state.sort, sort_dir: state.dir, container_page: state.page,
+			page_size: this._page_size, columns: this._columns.join(','),
+			panel_page: this._tab_pages.get(tab) ?? '1',
+			docker_page: this._problem_pages.get('docker'), other_page: this._problem_pages.get('other'),
+			...this._panel_filters
+		})) {
+			url.searchParams.set(key, String(value));
+		}
+		for (const key of ['from', 'to']) {
+			if (this._timeline[key]) {
+				url.searchParams.set(key, this._timeline[key]);
+			}
+		}
+		history.replaceState(null, '', url);
+	}
+
+	_syncTableControls() {
+		for (const [id, value] of Object.entries({
+			'docker-search': this._table_state.search, 'docker-status': this._table_state.status,
+			'docker-health': this._table_state.health, 'docker-page-size': this._page_size
+		})) {
+			const element = document.getElementById(id);
+			if (element !== null) {
+				element.value = value;
+			}
+		}
+		for (const input of document.querySelectorAll('[data-docker-column]')) {
+			input.checked = this._columns.includes(input.dataset.dockerColumn);
+		}
+	}
+
+	_applyColumns() {
+		const keys = ['name', 'note', 'uptime', 'health', 'cpu', 'memory', 'network'];
+		for (const row of document.querySelectorAll('#docker-table tr')) {
+			if (row.children.length === keys.length) {
+				[...row.children].forEach((cell, index) => { cell.hidden = !this._columns.includes(keys[index]); });
+			}
+		}
+	}
+
+	_initPreferenceControls() {
+		document.getElementById('docker-page-size')?.addEventListener('change', (event) => {
+			this._page_size = Number(event.target.value);
+			this._table_state.page = 1;
+			this._applyTableState();
+			this._schedulePreferenceSave();
+		});
+		for (const input of document.querySelectorAll('[data-docker-column]')) {
+			input.addEventListener('change', () => {
+				this._columns = [...document.querySelectorAll('[data-docker-column]:checked')]
+					.map((checkbox) => checkbox.dataset.dockerColumn);
+				this._applyColumns();
+				this._syncUrl();
+				this._schedulePreferenceSave();
+			});
+		}
+		document.getElementById('docker-preferences-retry')?.addEventListener('click', () => this._schedulePreferenceSave());
+	}
+
+	_schedulePreferenceSave() {
+		clearTimeout(this._preference_timer);
+		const revision = ++this._preference_revision;
+		this._preference_timer = setTimeout(() => {
+			const body = new URLSearchParams({
+				page_size: this._page_size, sort: this._table_state.sort, dir: this._table_state.dir,
+				<?= json_encode(CSRF_TOKEN_NAME) ?>: <?= json_encode(CCsrfTokenHelper::get('docker.preferences')) ?>
+			});
+			this._columns.forEach((column) => body.append('columns[]', column));
+			const status = document.getElementById('docker-preferences-status');
+			const retry = document.getElementById('docker-preferences-retry');
+			status.textContent = <?= json_encode(_('Saving preferences...')) ?>;
+			retry.hidden = true;
+			// Serialize writes so rapid changes cannot finish in the wrong order.
+			this._preference_request = this._preference_request
+				.then(() => fetch('zabbix.php?action=docker.preferences', {method: 'POST', body}))
+				.then((response) => {
+					if (!response.ok) { throw new Error(); }
+					return response.json();
+				})
+				.then((response) => {
+					if (response.success !== true) { throw new Error(); }
+					if (revision === this._preference_revision) {
+						status.textContent = <?= json_encode(_('Preferences saved')) ?>;
+						retry.hidden = true;
+					}
+				})
+				.catch(() => {
+					if (revision === this._preference_revision) {
+						status.textContent = <?= json_encode(_('Could not save preferences')) ?>;
+						retry.hidden = false;
+					}
+				});
+		}, 300);
+	}
+
+	_restorePanelControls() {
+		for (const input of this._panel.querySelectorAll('[data-image-filter]')) {
+			input.value = this._panel_filters['images_' + input.dataset.imageFilter];
+		}
+		this._filterImages(this._panel);
+		const search = this._panel.querySelector('#docker-graphs-search');
+		if (search !== null) {
+			search.value = this._panel_filters.graphs_search;
+			this._filterGraphs(search.value.trim().toLowerCase());
+		}
 	}
 
 	_initSparklines() {
@@ -516,6 +701,8 @@ window.monitor_docker = new class {
 
 		panel.addEventListener('input', (e) => {
 			if (e.target.id === 'docker-graphs-search') {
+				this._panel_filters.graphs_search = e.target.value;
+				this._syncUrl();
 				clearTimeout(this._graphs_search_debounce);
 
 				this._graphs_search_debounce = setTimeout(() => {
@@ -523,6 +710,8 @@ window.monitor_docker = new class {
 				}, 250);
 			}
 			else if (e.target.matches('[data-image-filter]')) {
+				this._panel_filters['images_' + e.target.dataset.imageFilter] = e.target.value;
+				this._syncUrl();
 				clearTimeout(this._image_filter_debounce);
 
 				this._image_filter_debounce = setTimeout(() => {
@@ -593,6 +782,7 @@ window.monitor_docker = new class {
 			}
 
 			this._tab_cache.delete(key);
+			this._syncUrl();
 			this._loadTab(key);
 		});
 
@@ -616,6 +806,7 @@ window.monitor_docker = new class {
 				tab.setAttribute('aria-selected', 'true');
 
 				const key = tab.dataset.tab;
+				this._syncUrl();
 
 				const timefilter = document.getElementById('docker-timefilter');
 
@@ -626,14 +817,6 @@ window.monitor_docker = new class {
 				if (key === '') {
 					panel.hidden = true;
 					content.hidden = false;
-
-					const url = new Curl('zabbix.php');
-
-					url.setArgument('action', 'docker.tab');
-					url.setArgument('hostid', this._hostid);
-					url.setArgument('tab', 'docker');
-
-					fetch(url.getUrl()).catch(() => {});
 
 					return;
 				}
@@ -696,6 +879,7 @@ window.monitor_docker = new class {
 
 				if (this._isActiveTab(key)) {
 					panel.innerHTML = html;
+					this._restorePanelControls();
 					this._hydrateCharts(panel);
 				}
 			})
@@ -728,6 +912,7 @@ window.monitor_docker = new class {
 	}
 
 	_initTableControls() {
+		this._initPreferenceControls();
 		const search = document.getElementById('docker-search');
 
 		if (search !== null) {
@@ -778,6 +963,7 @@ window.monitor_docker = new class {
 
 				this._table_state.page = 1;
 				this._applyTableState();
+				this._schedulePreferenceSave();
 			};
 
 			header.addEventListener('click', toggle);
@@ -797,6 +983,7 @@ window.monitor_docker = new class {
 			return;
 		}
 
+		this._applyColumns();
 		const tbody = table.querySelector('tbody');
 
 		const rows = [...tbody.querySelectorAll('tr')].filter((row) => row.dataset.name !== undefined);
@@ -867,6 +1054,7 @@ window.monitor_docker = new class {
 		const pages = Math.max(1, Math.ceil(filtered.length / this._page_size));
 
 		this._table_state.page = Math.min(this._table_state.page, pages);
+		this._syncUrl();
 
 		const start = (this._table_state.page - 1) * this._page_size;
 		const page_rows = new Set(filtered.slice(start, start + this._page_size));
@@ -973,6 +1161,9 @@ window.monitor_docker = new class {
 			return;
 		}
 
+		const url = new URL(location.href);
+		url.searchParams.set('container', name);
+		history.replaceState(null, '', url);
 		this._modal_trigger = trigger;
 		this._setModalTitle(name);
 		modal.backdrop.hidden = false;
@@ -1049,6 +1240,9 @@ window.monitor_docker = new class {
 			return;
 		}
 
+		const url = new URL(location.href);
+		url.searchParams.delete('container');
+		history.replaceState(null, '', url);
 		this._modal.backdrop.hidden = true;
 
 		if (this._modal_keydown !== null) {

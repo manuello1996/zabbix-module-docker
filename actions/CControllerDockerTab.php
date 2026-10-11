@@ -22,6 +22,7 @@ use CTag;
 use CWebUser;
 use Modules\MonitorDocker\Includes\DockerCollector;
 use Modules\MonitorDocker\Includes\DockerFormatter;
+use Modules\MonitorDocker\Includes\DockerImageAge;
 
 class CControllerDockerTab extends CController {
 	public const TIME_PROFILE_IDX = 'web.docker.filter';
@@ -320,6 +321,7 @@ class CControllerDockerTab extends CController {
 	}
 
 	private function makeImagesPanel(string $hostid): CDiv {
+		$image_age = DockerImageAge::get();
 		$search_limit = (int) CSettingsHelper::get(CSettingsHelper::SEARCH_LIMIT);
 
 		$items = API::Item()->get([
@@ -537,10 +539,10 @@ class CControllerDockerTab extends CController {
 			$created = new CSpan($created_text);
 
 			if ($image['created'] !== null && $image['created'] > 0
-					&& $image['created'] < time() - 365 * SEC_PER_DAY) {
+					&& $image['created'] < time() - $image_age['seconds']) {
 				$created
 					->addClass('docker-image-created-old')
-					->setTitle(_('Image is older than 365 days.'));
+					->setTitle(sprintf(_('Image is older than %1$s.'), $image_age['label']));
 			}
 
 			$usage_filter = $usage_available
@@ -601,7 +603,7 @@ class CControllerDockerTab extends CController {
 			$table,
 			(new CDiv([
 				(new CSpan())->addClass('docker-image-age-legend-marker'),
-				_('A red Created date indicates that the image is older than 365 days and should be updated or removed.')
+				sprintf(_('A red Created date indicates that the image is older than %1$s.'), $image_age['label'])
 			]))->addClass('docker-image-age-legend')
 		]));
 	}

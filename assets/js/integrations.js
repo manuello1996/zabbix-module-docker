@@ -399,6 +399,34 @@
 	}
 
 	document.addEventListener('DOMContentLoaded', () => {
+		// Include restored profile filters in links copied from the overview and cleanup pages.
+		if (ACTION === 'docker.list' || ACTION === 'docker.cleanup') {
+			const filter = document.querySelector('[data-docker-filter]');
+			if (filter !== null) {
+				const url = new URL(location.href);
+				for (const key of [...url.searchParams.keys()]) {
+					if (key.startsWith('filter_')) { url.searchParams.delete(key); }
+				}
+				const append = (key, value) => {
+					if (Array.isArray(value)) {
+						value.forEach((entry, index) => append(key + (typeof entry === 'object' ? `[${index}]` : '[]'), entry));
+					}
+					else if (value !== null && typeof value === 'object') {
+						Object.entries(value).forEach(([field, entry]) => append(`${key}[${field}]`, entry));
+					}
+					else {
+						url.searchParams.append(key, String(value));
+					}
+				};
+				for (const [key, value] of Object.entries(JSON.parse(filter.dataset.dockerFilter))) {
+					if (key === 'groups') { continue; }
+					if (key === 'sort' || key === 'sortorder') { url.searchParams.set(key, value); }
+					else { append('filter_' + key, value); }
+				}
+				url.searchParams.set('filter_set', '1');
+				history.replaceState(null, '', url);
+			}
+		}
 		scan();
 
 		if (ACTION === 'host.view' || HOST_POPUP_ACTIONS.has(ACTION)) {

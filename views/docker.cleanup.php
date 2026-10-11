@@ -72,10 +72,13 @@ $filter_right = (new CFormGrid())
 
 $html_page->addItem(
 	(new CFilter())
+		->setAttribute('data-docker-filter', $data['filter'] + ['sort' => $data['sort'], 'sortorder' => $data['sortorder']])
 		->setResetUrl(new CUrl('zabbix.php?action=docker.cleanup'))
 		->setProfile('web.docker.cleanup.filter')
 		->setActiveTab($data['active_tab'])
 		->addVar('action', 'docker.cleanup')
+		->addVar('sort', $data['sort'])
+		->addVar('sortorder', $data['sortorder'])
 		->addFilterTab(_('Filter'), [$filter_left, $filter_right])
 );
 

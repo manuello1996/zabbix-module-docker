@@ -1,6 +1,7 @@
 <?php declare(strict_types = 0);
 
 use Modules\MonitorDocker\Includes\DockerFormatter;
+use Modules\MonitorDocker\Includes\DockerTablePreferences;
 
 $this->addJsFile('class.calendar.js');
 $this->addJsFile('gtlc.js');
@@ -302,6 +303,29 @@ $toolbar = (new CDiv([
 		(new CSpan(_('Health').':'))->addClass('docker-status-label'),
 		$health_select
 	]))->addClass('docker-status-wrap'),
+	(new CTag('label', true, [
+		_('Rows').': ',
+		(new CTag('select', true, array_map(static fn (int $size): CTag =>
+			(new CTag('option', true, (string) $size))->setAttribute('value', (string) $size),
+			DockerTablePreferences::PAGE_SIZES
+		)))->setId('docker-page-size')->addClass('docker-status-select')
+	])),
+	(new CTag('details', true, [
+		new CTag('summary', true, _('Columns')),
+		(new CDiv(array_map(static fn (string $key, string $label): CTag =>
+			(new CTag('label', true, [
+				(new CTag('input', false))->setAttribute('type', 'checkbox')
+					->setAttribute('data-docker-column', $key)
+					->setAttribute('disabled', $key === 'name' ? 'disabled' : null),
+				$label
+			])),
+			DockerTablePreferences::COLUMNS,
+			[_('Container name'), _('Note'), _('Uptime'), _('Health'), _('CPU'), _('Memory'), _('Network')]
+		)))->addClass('docker-column-options')
+	]))->addClass('docker-column-settings'),
+	(new CSpan())->setId('docker-preferences-status')->setAttribute('aria-live', 'polite'),
+	(new CTag('button', true, _('Retry save')))->setAttribute('type', 'button')
+		->setId('docker-preferences-retry')->setAttribute('hidden', 'hidden'),
 	(new CDiv([
 		(new CTag('button', true, '‹'))
 			->setAttribute('type', 'button')
@@ -416,8 +440,7 @@ $table_section = (new CDiv([
 	(new CTag('h4', true, _('Container metrics (latest)')))->addClass('docker-section-title'),
 	$container_data_sources,
 	$toolbar,
-	$table,
-	$data['paging'] ?? null
+	$table
 ]))->addClass('docker-section');
 
 $modal = (new CDiv(
@@ -460,7 +483,10 @@ $html_page
 	->show();
 
 (new CScriptTag('monitor_docker.init('.json_encode([
-	'hostid' => $data['filter']['hostid']
+	'hostid' => $data['filter']['hostid'],
+	'groupids' => $data['filter']['groupids'],
+	'timeline' => $data['timeline'],
+	'preferences' => $data['table_preferences']
 ]).');'))
 	->setOnDocumentReady()
 	->show();

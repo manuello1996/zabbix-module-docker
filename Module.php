@@ -15,7 +15,9 @@ class Module extends CModule {
 			->findOrAdd(_('Monitoring'))
 			->getSubmenu()
 			->insertAfter(_('Latest data'),
-				(new CMenuItem(_('Docker')))->setAction('docker.list')
+				(new CMenuItem(_('Docker')))
+					->setAction('docker.list')
+					->setAliases(['docker.view', 'docker.cleanup'])
 			);
 	}
 }

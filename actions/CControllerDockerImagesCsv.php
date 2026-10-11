@@ -7,10 +7,10 @@ use CController;
 use CControllerResponseData;
 use CRoleHelper;
 use CWebUser;
+use Modules\MonitorDocker\Includes\DockerImageAge;
 
 class CControllerDockerImagesCsv extends CController {
 	private const IMAGE_CREATED_KEY_PREFIX = 'docker.image.created[';
-	private const IMAGE_MAX_AGE_DAYS = 365;
 
 	protected function init(): void {
 		$this->disableCsrfValidation();
@@ -25,7 +25,8 @@ class CControllerDockerImagesCsv extends CController {
 	}
 
 	protected function doAction(): void {
-		$cutoff = time() - self::IMAGE_MAX_AGE_DAYS * SEC_PER_DAY;
+		$image_age = DockerImageAge::get();
+		$cutoff = time() - $image_age['seconds'];
 		$old_items = [];
 		$rows = [];
 
@@ -87,7 +88,7 @@ class CControllerDockerImagesCsv extends CController {
 		);
 
 		$response = new CControllerResponseData(['rows' => $rows]);
-		$response->setFileName('docker_images_older_than_365_days_'.date('Y-m-d').'.csv');
+		$response->setFileName('docker_images_older_than_'.$image_age['filename'].'_'.date('Y-m-d').'.csv');
 		$this->setResponse($response);
 	}
 }
