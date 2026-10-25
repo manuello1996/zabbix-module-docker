@@ -1,15 +1,17 @@
 <?php declare(strict_types = 0);
 
 namespace Modules\MonitorDocker\Actions;
+use Modules\MonitorDocker\Includes\Common\ProblemBadges;
 
 use API;
 use CController;
 use CControllerResponseData;
 use CControllerResponseFatal;
 use CRoleHelper;
-use CSeverityHelper;
 use CWebUser;
 use Modules\MonitorDocker\Includes\DockerCollector;
+
+require_once dirname(__DIR__).'/includes/common/bootstrap.php';
 
 class CControllerDockerProblems extends CController {
 	protected function init(): void {
@@ -47,13 +49,7 @@ class CControllerDockerProblems extends CController {
 		$result = array_fill_keys($hostids, []);
 
 		foreach (DockerCollector::problemsByHosts($hostids) as $hostid => $problems) {
-			foreach ($problems['by_severity'] as $severity => $count) {
-				$result[$hostid][] = [
-					'count' => $count,
-					'style' => CSeverityHelper::getStatusStyle((int) $severity),
-					'title' => CSeverityHelper::getName((int) $severity)
-				];
-			}
+			$result[$hostid] = ProblemBadges::metadata($problems['by_severity']);
 		}
 
 		$this->setResponse(new CControllerResponseData([

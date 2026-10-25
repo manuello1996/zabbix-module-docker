@@ -2,6 +2,13 @@
 
 namespace Modules\MonitorDocker\Actions;
 
+use Modules\MonitorDocker\Includes\Common\RowDetails;
+
+use Modules\MonitorDocker\Includes\Common\Summary;
+use Modules\MonitorDocker\Includes\Common\SortableHeader;
+
+use Modules\MonitorDocker\Includes\Common\SearchControl;
+
 use API;
 use CCol;
 use CController;
@@ -10,7 +17,7 @@ use CDiv;
 use CLink;
 use CLinkAction;
 use CMenuPopupHelper;
-use CPagerHelper;
+use Modules\MonitorDocker\Includes\Common\Pager as CPagerHelper;
 use CRoleHelper;
 use CRow;
 use CSettingsHelper;
@@ -23,6 +30,8 @@ use CWebUser;
 use Modules\MonitorDocker\Includes\DockerCollector;
 use Modules\MonitorDocker\Includes\DockerFormatter;
 use Modules\MonitorDocker\Includes\DockerImageAge;
+
+require_once dirname(__DIR__).'/includes/common/bootstrap.php';
 
 class CControllerDockerTab extends CController {
 	public const TIME_PROFILE_IDX = 'web.docker.filter';
@@ -287,14 +296,10 @@ class CControllerDockerTab extends CController {
 				$pill_value = new CSpan('-');
 			}
 			else {
-				$pill_value = (new CSpan($format === 'bytes' ? DockerFormatter::bytes($value) : $value))
-					->addClass('docker-card-value');
+				$pill_value = (new CSpan($format === 'bytes' ? DockerFormatter::bytes($value) : $value));
 			}
 
-			$pills[] = (new CDiv([
-				(new CSpan($label))->addClass('docker-card-unit'),
-				$pill_value
-			]))->addClass('docker-stat');
+			$pills[] = Summary::card($label, $pill_value);
 		}
 
 		$table = (new CTableInfo())
@@ -308,7 +313,7 @@ class CControllerDockerTab extends CController {
 		}
 
 		$body = [
-			(new CDiv($pills))->addClass('docker-hostbar-stats')->addClass('docker-node-stats'),
+			Summary::strip($pills),
 			$table
 		];
 
@@ -458,18 +463,11 @@ class CControllerDockerTab extends CController {
 		}
 
 		foreach ($pill_defs as [$label, $value]) {
-			$pills[] = (new CDiv([
-				(new CSpan($label))->addClass('docker-card-unit'),
-				(new CSpan($value))->addClass('docker-card-value')
-			]))->addClass('docker-stat');
+			$pills[] = Summary::card($label, (new CSpan($value)));
 		}
 
 		$make_sort_header = static function (string $label, string $field): CSpan {
-			return (new CSpan([$label, (new CSpan())->addClass('docker-sort-arrow')]))
-				->addClass('docker-image-sort')
-				->setAttribute('data-image-sort', $field)
-				->setAttribute('role', 'button')
-				->setAttribute('tabindex', '0');
+			return SortableHeader::render($label, $field, '', ZBX_SORT_UP, ['attribute' => 'data-image-sort']);
 		};
 
 		$table = (new CTableInfo())
@@ -490,6 +488,10 @@ class CControllerDockerTab extends CController {
 			$short_id = substr($short_id, 0, 12);
 			$usage = (new CSpan(_('No data')))->addClass('docker-muted');
 
+			$usage_panel = null;
+			$image_toggle = null;
+			$usage_panel_id = 'docker-image-containers-'.substr(hash('sha256', $image['id'].'/'.$image['name']), 0, 20);
+
 			if ($usage_available) {
 				$running = count(array_filter(
 					$image['containers'],
@@ -498,34 +500,22 @@ class CControllerDockerTab extends CController {
 				$stopped = count($image['containers']) - $running;
 
 				if ($image['containers']) {
-					$container_nodes = [];
-
+					$usage_table = (new CTableInfo())->setHeader([_('Container'), _('State'), _('Container ID')]);
 					foreach ($image['containers'] as $container) {
-						$container_nodes[] = (new CDiv([
-							(new CSpan())->addClass('docker-dot')
-								->addClass($container['state'] === 'running'
-									? 'docker-status-running'
-									: 'docker-status-stopped'
-								),
-							(new CLinkAction($container['name']))
-								->setAttribute('data-container', $container['name'])
-								->setTitle($container['id']),
-							(new CSpan(ucfirst($container['state'])))
-								->addClass('docker-image-usage-state')
-						]))->addClass('docker-image-usage-container');
+						$usage_table->addRow([
+							(new CLinkAction($container['name']))->setAttribute('data-container', $container['name']),
+							(new CSpan(ucfirst($container['state'])))->addClass($container['state'] === 'running'
+								? 'docker-status-running' : 'docker-status-stopped'),
+							(new CSpan($container['id']))->addClass('docker-image-id')
+						]);
 					}
-
-					$usage = (new CTag('details', true, [
-						(new CTag('summary', true, [
-							(new CSpan(count($image['containers']).' '._('containers')))
-								->addClass('docker-image-usage-total'),
-							(new CSpan($running.' '._('running')))
-								->addClass('docker-status-running'),
-							(new CSpan($stopped.' '._('stopped')))
-								->addClass($stopped > 0 ? 'docker-status-stopped' : 'docker-muted')
-						]))->addClass('docker-image-usage-summary'),
-						(new CDiv($container_nodes))->addClass('docker-image-usage-list')
-					]))->addClass('docker-image-usage');
+					$image_toggle = RowDetails::toggle(_('Containers').' ('.count($image['containers']).')', $usage_panel_id,
+						false, ['aria-label' => _('Containers').': '.$image['name']]);
+					$usage_panel = RowDetails::grid([RowDetails::group(_('Containers'), $usage_table, records: true)]);
+					$usage = new CDiv([
+						(new CSpan($running.' '._('running')))->addClass('docker-status-running'), ' / ',
+						(new CSpan($stopped.' '._('stopped')))->addClass($stopped > 0 ? 'docker-status-stopped' : 'docker-muted')
+					]);
 				}
 				else {
 					$usage = (new CSpan($usage_complete ? _('Unused') : _('No matched containers')))
@@ -558,10 +548,10 @@ class CControllerDockerTab extends CController {
 				: _('No data');
 
 			$row = (new CRow([
-				(new CSpan($is_dangling ? _('<untagged>') : $image['name']))
+				RowDetails::name((new CSpan($is_dangling ? _('<untagged>') : $image['name']))
 					->addClass('docker-image-name')
 					->addClass($is_dangling ? 'docker-muted' : null)
-					->setTitle($image['name']),
+					->setTitle($image['name']), $image_toggle),
 				(new CSpan($short_id))->addClass('docker-image-id')->setTitle($image['id']),
 				$image['size_formatted'] ?? '-',
 				$created,
@@ -570,9 +560,11 @@ class CControllerDockerTab extends CController {
 				->setAttribute('data-image-name', strtolower($image['name']))
 				->setAttribute('data-image-sort-size', (string) ($image['size'] ?? -1))
 				->setAttribute('data-image-sort-created', (string) ($image['created'] ?? -1))
-				->setAttribute('data-image-usage', strtolower($usage_filter));
+				->setAttribute('data-image-usage', strtolower($usage_filter))
+				->setAttribute('data-image-details', $usage_panel !== null ? $usage_panel_id : null);
 
 			$table->addRow($row);
+			if ($usage_panel !== null) { $table->addRow(RowDetails::row($usage_panel_id, 5, $usage_panel)); }
 		}
 
 		$filters = [];
@@ -581,26 +573,17 @@ class CControllerDockerTab extends CController {
 			'name' => _('Name'),
 			'usage' => _('Usage')
 		] as $field => $label) {
-			$filters[] = (new CTag('label', true, [
-				(new CSpan($label))->addClass('docker-card-unit'),
-				(new CTag('input', false))
-					->setAttribute('type', 'search')
-					->setAttribute('data-image-filter', $field)
-					->setAttribute('placeholder', _('Filter').' '.$label)
-					->setAttribute('autocomplete', 'off')
-					->addClass('docker-search')
-			]))->addClass('docker-image-filter');
+			$extra = $field === 'usage' ? [(new CSpan(count($images).' '._('images')))
+				->setId('docker-images-filter-count')->addClass('docker-graphs-count')] : [];
+			$filters[] = SearchControl::bar(_('Filter').' '.$label, '', [
+				'id' => 'docker-images-'.$field, 'data-image-filter' => $field
+			], ['label' => $label, 'extra' => $extra]);
 		}
 
 		return $this->wrapPanel(_('Images'), new CDiv([
-			(new CDiv($pills))->addClass('docker-hostbar-stats')->addClass('docker-node-stats'),
-			(new CDiv([
-				(new CDiv($filters))->addClass('docker-image-filters'),
-				(new CSpan(count($images).' '._('images')))
-					->setId('docker-images-filter-count')
-					->addClass('docker-graphs-count')
-			]))->addClass('docker-toolbar')->addClass('docker-image-toolbar'),
-			$table,
+			Summary::strip($pills),
+			new CDiv($filters),
+			RowDetails::table($table),
 			(new CDiv([
 				(new CSpan())->addClass('docker-image-age-legend-marker'),
 				sprintf(_('A red Created date indicates that the image is older than %1$s.'), $image_age['label'])
@@ -791,10 +774,7 @@ class CControllerDockerTab extends CController {
 		];
 
 		foreach ($pill_defs as [$label, $value]) {
-			$pills[] = (new CDiv([
-				(new CSpan($label))->addClass('docker-card-unit'),
-				(new CSpan($value))->addClass('docker-card-value')
-			]))->addClass('docker-stat');
+			$pills[] = Summary::card($label, (new CSpan($value)));
 		}
 
 		$paging = CPagerHelper::paginate($page, $volumes, ZBX_SORT_UP, $this->getTabUrl('volumes'));
@@ -824,7 +804,7 @@ class CControllerDockerTab extends CController {
 		}
 
 		return $this->wrapPanel(_('Volumes'), new CDiv([
-			(new CDiv($pills))->addClass('docker-hostbar-stats')->addClass('docker-node-stats'),
+			Summary::strip($pills),
 			$table,
 			$paging
 		]));
@@ -925,10 +905,7 @@ class CControllerDockerTab extends CController {
 			[_('Read-write'), $read_write],
 			[_('Read-only'), $mount_count - $read_write]
 		] as [$label, $value]) {
-			$pills[] = (new CDiv([
-				(new CSpan($label))->addClass('docker-card-unit'),
-				(new CSpan((string) $value))->addClass('docker-card-value')
-			]))->addClass('docker-stat');
+			$pills[] = Summary::card($label, (new CSpan((string) $value)));
 		}
 
 		$paging = CPagerHelper::paginate($page, $mount_groups, ZBX_SORT_UP, $this->getTabUrl('mounts'));
@@ -989,7 +966,7 @@ class CControllerDockerTab extends CController {
 				]);
 			}
 
-			$body = (new CDiv([$table]))->addClass('docker-graphgroup-body');
+			$body = RowDetails::grid([RowDetails::group(_('Mounts'), $table, records: true)])->addClass('docker-graphgroup-body');
 
 			if (!$expand_all) {
 				$body->setAttribute('hidden', 'hidden');
@@ -1017,7 +994,7 @@ class CControllerDockerTab extends CController {
 		}
 
 		return $this->wrapPanel(_('Mounts'), new CDiv([
-			(new CDiv($pills))->addClass('docker-hostbar-stats')->addClass('docker-node-stats'),
+			Summary::strip($pills),
 			(new CDiv($group_nodes))->addClass('docker-mount-groups'),
 			$paging
 		]));
@@ -1155,10 +1132,7 @@ class CControllerDockerTab extends CController {
 			[_('Healthy'), $health_counts['healthy']],
 			[_('Unhealthy'), $health_counts['unhealthy']]
 		] as [$label, $value]) {
-			$pills[] = (new CDiv([
-				(new CSpan($label))->addClass('docker-card-unit'),
-				(new CSpan((string) $value))->addClass('docker-card-value')
-			]))->addClass('docker-stat');
+			$pills[] = Summary::card($label, (new CSpan((string) $value)));
 		}
 
 		$project_nodes = [];
@@ -1227,12 +1201,12 @@ class CControllerDockerTab extends CController {
 						->setAttribute('data-container', $container['name']);
 				}
 
-				$container_body = (new CDiv([
-					$details_link !== null
-						? (new CDiv($details_link))->addClass('docker-compose-container-actions')
-						: null,
-					$labels_table
-				]))->addClass('docker-graphgroup-body');
+				$container_body = RowDetails::grid([RowDetails::group(
+					$labels_table !== null ? _('Compose labels') : _('Container details'), [
+						$labels_table,
+						$details_link !== null ? (new CDiv($details_link))->addClass('docker-compose-container-actions') : null
+					], records: true
+				)])->addClass('docker-graphgroup-body');
 
 				if (!$expand_containers) {
 					$container_body->setAttribute('hidden', 'hidden');
@@ -1340,7 +1314,7 @@ class CControllerDockerTab extends CController {
 		}
 
 		return $this->wrapPanel(_('Compose'), new CDiv([
-			(new CDiv($pills))->addClass('docker-hostbar-stats')->addClass('docker-node-stats'),
+			Summary::strip($pills),
 			(new CDiv($project_nodes))->addClass('docker-compose-projects'),
 			$paging
 		]));
@@ -1681,20 +1655,13 @@ class CControllerDockerTab extends CController {
 
 		$panel = new CDiv();
 
-		$panel->addItem(
-			(new CDiv([
-				(new CTag('input', false))
-					->setId('docker-graphs-search')
-					->setAttribute('type', 'search')
-					->setAttribute('placeholder', _('Filter graphs...'))
-					->setAttribute('aria-label', _('Filter graphs'))
-					->setAttribute('autocomplete', 'off')
-					->addClass('docker-search'),
-				(new CSpan($total.' '._('graphs').' · '.count($groups).' '._('groups')
-					.($total == $search_limit ? ' ('._('limited').')' : '')
-				))->addClass('docker-graphs-count')
-			]))->addClass('docker-toolbar')
-		);
+		$panel->addItem(SearchControl::bar(_('Filter graphs...'), '', [
+			'id' => 'docker-graphs-search', 'aria-label' => _('Filter graphs')
+		], ['extra' => [
+			(new CSpan($total.' '._('graphs').' ? '.count($groups).' '._('groups')
+				.($total == $search_limit ? ' ('._('limited').')' : '')
+			))->addClass('docker-graphs-count')
+		]]));
 
 		foreach ($groups as $group_name => $items) {
 			$body = (new CDiv())->addClass('docker-graphgroup-body');

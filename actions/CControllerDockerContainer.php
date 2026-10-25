@@ -2,6 +2,8 @@
 
 namespace Modules\MonitorDocker\Actions;
 
+use Modules\MonitorDocker\Includes\Common\RowDetails;
+
 use API;
 use CController;
 use CControllerResponseData;
@@ -14,6 +16,8 @@ use CUrl;
 use CWebUser;
 use Modules\MonitorDocker\Includes\DockerCollector;
 use Modules\MonitorDocker\Includes\DockerFormatter;
+
+require_once dirname(__DIR__).'/includes/common/bootstrap.php';
 
 class CControllerDockerContainer extends CController {
 	private const FIELDS = [
@@ -356,11 +360,7 @@ class CControllerDockerContainer extends CController {
 			]);
 		}
 
-		return (new CDiv([
-			(new CTag('h5', true, _('Mounts')))->addClass('docker-cell-title'),
-			$table
-		]))
-			->addClass('docker-cell')
+		return RowDetails::group(_('Mounts'), $table, records: true)
 			->addClass('docker-cell-wide')
 			->addClass('docker-modal-mounts');
 	}
@@ -393,11 +393,7 @@ class CControllerDockerContainer extends CController {
 			]);
 		}
 
-		return (new CDiv([
-			(new CTag('h5', true, _('Labels')))->addClass('docker-cell-title'),
-			$table
-		]))
-			->addClass('docker-cell')
+		return RowDetails::group(_('Labels'), $table, records: true)
 			->addClass('docker-cell-wide')
 			->addClass('docker-modal-labels');
 	}

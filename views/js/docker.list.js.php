@@ -6,24 +6,22 @@
 <script>
 window.monitor_docker_list = new class {
 	init({refresh_interval}) {
-		this._interval = refresh_interval;
-		this._timer = null;
-		this._last_refresh = Date.now();
-		this._failures = 0;
-		this._status = document.getElementById('docker-list-refresh-status');
+		this._reloadRequest = null;
 		this._problem_request = null;
-
+		this._autoRefresh = new window.DockerCommon.AutoRefresh({
+			control: document.getElementById('docker-list-auto-refresh'), interval: refresh_interval,
+			status: document.getElementById('docker-list-refresh-status'),
+			onRefresh: () => this._reload(), isBusy: () => this._reloadRequest !== null
+		});
+		this._autoRefresh.updated();
 		this._loadProblems();
 		this._initTagFilter();
-
-		if (!this._interval) {
-			return;
-		}
-
-		this._schedule();
-		this._updateStatus();
-
-		setInterval(() => this._updateStatus(), 1000);
+		const refresh = document.getElementById('docker-list-refresh');
+		refresh?.addEventListener('click', () => {
+			if (this._reloadRequest !== null) return;
+			refresh.disabled = true;
+			this._reload().finally(() => { refresh.disabled = false; });
+		});
 	}
 
 	_initTagFilter() {
@@ -41,29 +39,6 @@ window.monitor_docker_list = new class {
 			});
 
 		document.querySelectorAll('#filter-tags .form_row').forEach((row) => new CTagFilterItem(row));
-	}
-
-	_updateStatus() {
-		if (this._status === null) {
-			return;
-		}
-
-		if (this._failures >= 3) {
-			this._status.textContent = <?= json_encode(_('Update failed. Retrying...')) ?>;
-
-			return;
-		}
-
-		const seconds = Math.max(0, Math.round((Date.now() - this._last_refresh) / 1000));
-		const age = seconds < 60 ? seconds + 's' : Math.floor(seconds / 60) + 'm';
-
-		this._status.textContent = <?= json_encode(_('Updated %1$s ago')) ?>.replace('%1$s', age);
-	}
-
-	_schedule() {
-		clearTimeout(this._timer);
-
-		this._timer = setTimeout(() => this._reload(), this._interval * 1000);
 	}
 
 	_loadProblems() {
@@ -89,27 +64,9 @@ window.monitor_docker_list = new class {
 				for (const target of targets) {
 					const badges = response.hosts?.[target.dataset.problemHostid] ?? [];
 
-					if (badges.length === 0) {
-						const empty = document.createElement('span');
-
-						empty.className = 'docker-muted';
-						empty.textContent = '-';
-						target.replaceWith(empty);
-
-						continue;
-					}
-
-					target.replaceChildren();
-					target.removeAttribute('aria-label');
-
-					for (const badge of badges) {
-						const span = document.createElement('span');
-
-						span.className = 'problem-icon-list-item ' + badge.style;
-						span.title = badge.title;
-						span.textContent = badge.count;
-						target.append(span);
-					}
+					window.DockerCommon.ProblemBadges.render(target, badges, {
+						emptyText: <?= json_encode(_('None')) ?>
+					});
 				}
 			})
 			.catch(() => {
@@ -117,19 +74,19 @@ window.monitor_docker_list = new class {
 					return;
 				}
 
-				for (const target of targets) {
-					const empty = document.createElement('span');
-
-					empty.className = 'docker-muted';
-					empty.textContent = '-';
-					target.replaceWith(empty);
-				}
+				for (const target of targets) window.DockerCommon.ProblemBadges.render(target, [], {
+					available: false, unavailableText: <?= json_encode(_('Unavailable')) ?>
+				});
 			});
 
 		this._problem_request = request;
 	}
 
 	_reload() {
+		if (this._reloadRequest !== null) return this._reloadRequest;
+		this._autoRefresh.pause();
+		this._autoRefresh.setStatus(<?= json_encode(_('Loading Docker data...')) ?>);
+
 		const url = new Curl(location.href);
 
 		url.setArgument('action', 'docker.list');
@@ -140,7 +97,7 @@ window.monitor_docker_list = new class {
 			url.setArgument('page', page);
 		}
 
-		fetch(url.getUrl(), {cache: 'no-store'})
+		const request = fetch(url.getUrl(), {cache: 'no-store'})
 			.then((response) => {
 				if (!response.ok) {
 					throw new Error();
@@ -163,15 +120,17 @@ window.monitor_docker_list = new class {
 				document.getElementById('docker-list-paging').replaceWith(paging);
 				this._loadProblems();
 
-				this._failures = 0;
-				this._last_refresh = Date.now();
-				this._updateStatus();
+				this._autoRefresh.updated();
 			})
 			.catch(() => {
-				this._failures++;
-				this._updateStatus();
+				this._autoRefresh.setStatus(<?= json_encode(_('Unable to refresh Docker data. Showing the last loaded values.')) ?>);
 			})
-			.finally(() => this._schedule());
+			.finally(() => {
+				this._reloadRequest = null;
+				this._autoRefresh.resume();
+			});
+		this._reloadRequest = request;
+		return request;
 	}
 };
 

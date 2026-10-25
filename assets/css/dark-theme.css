@@ -26,7 +26,6 @@ html[theme="hc-dark"] {
 	--docker-series-2: #f63100;
 }
 
-
 .docker-column-settings { position: relative; }
 .docker-column-settings summary { cursor: pointer; }
 .docker-column-options {

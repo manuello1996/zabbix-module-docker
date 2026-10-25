@@ -2,6 +2,10 @@
 
 namespace Modules\MonitorDocker\Includes;
 
+use Modules\MonitorDocker\Includes\Common\Formatting;
+
+require_once __DIR__.'/common/Formatting.php';
+
 class DockerFormatter {
 	public static function formatOverview(array $overview): array {
 		return [
@@ -113,17 +117,7 @@ class DockerFormatter {
 	}
 
 	public static function rate($value): string {
-		$value = max(0.0, (float) $value);
-
-		foreach (['B', 'KB', 'MB', 'GB'] as $unit) {
-			if ($value < 1024 || $unit === 'GB') {
-				return ($unit === 'B' ? (string) round($value) : sprintf('%.1f', $value)).' '.$unit.'/s';
-			}
-
-			$value /= 1024;
-		}
-
-		return '-';
+		return Formatting::binaryRate($value);
 	}
 
 	public static function noData(): string {

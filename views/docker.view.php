@@ -1,7 +1,18 @@
 <?php declare(strict_types = 0);
+use Modules\MonitorDocker\Includes\Common\Summary;
+use Modules\MonitorDocker\Includes\Common\Breadcrumbs;
+use Modules\MonitorDocker\Includes\Common\ProblemBadges;
+use Modules\MonitorDocker\Includes\Common\CapacityBar;
+use Modules\MonitorDocker\Includes\Common\SortableHeader;
+use Modules\MonitorDocker\Includes\Common\Sparkline;
+use Modules\MonitorDocker\Includes\Common\Pager;
+
+use Modules\MonitorDocker\Includes\Common\SearchControl;
 
 use Modules\MonitorDocker\Includes\DockerFormatter;
 use Modules\MonitorDocker\Includes\DockerTablePreferences;
+
+require_once dirname(__DIR__).'/includes/common/bootstrap.php';
 
 $this->addJsFile('class.calendar.js');
 $this->addJsFile('gtlc.js');
@@ -10,16 +21,15 @@ $this->addJsFile('items.js');
 
 $this->includeJsFile('docker.view.js.php');
 
-
-
-$makeSparkline = static function (array $itemids, string $kind, string $mode = 'single'): CDiv {
-	return (new CDiv())
-		->addClass('docker-sparkline')
-		->addClass('docker-spark-'.$kind)
-		->setAttribute('data-spark-itemids', implode(',', $itemids))
-		->setAttribute('data-spark-kind', $kind)
-		->setAttribute('data-spark-mode', $mode)
-		->setAttribute('aria-label', _('Loading history'));
+$makeSparkline = static function (array $itemids, string $kind, string $mode = 'single', ?float $total = null): CDiv {
+	$attributes = [
+		'data-spark-itemids' => implode(',', $itemids), 'data-spark-kind' => $kind, 'data-spark-mode' => $mode
+	];
+	if ($total !== null) {
+		$attributes['data-spark-total'] = $total;
+		$attributes['title'] = _('Memory usage as a percentage of Docker node memory');
+	}
+	return Sparkline::holder($attributes, $kind);
 };
 
 $html_page = (new CHtmlPage())
@@ -143,12 +153,10 @@ $meta_parts[] = (new CSpan([_('Note').': ', $host_note !== '' ? $host_note : '-'
 $html_page->addItem(
 	(new CDiv([
 		(new CDiv([
-			(new CDiv([
+			Breadcrumbs::make([
 				new CLink(_('Nodes'), (new CUrl('zabbix.php'))->setArgument('action', 'docker.list')),
-				(new CSpan('›'))->addClass('docker-breadcrumb-sep'),
-				(new CSpan($data['host']['name']))->addClass('docker-breadcrumb-current')
-			]))
-				->addClass('docker-breadcrumb')
+				(new CSpan($data['host']['name']))
+			])
 				->setAttribute('aria-label', _('Breadcrumb')),
 			(new CDiv([
 				(new CSpan($host_enabled ? _('Enabled') : _('Disabled')))
@@ -182,20 +190,11 @@ $memory_pct = ($data['node']['mem_total'] !== null && (float) $data['node']['mem
 	: 0;
 
 $makeStatSegment = static function (string $modifier, string $label, $value, $unit, $aside): CDiv {
-	return (new CDiv([
-		(new CDiv($label))->addClass('docker-statseg-label'),
-		(new CDiv([
-			(new CSpan($value))->addClass('docker-card-value'),
-			$unit !== '' ? (new CSpan($unit))->addClass('docker-card-unit') : null,
-			$aside !== null ? (new CDiv($aside))->addClass('docker-statseg-aside') : null
-		]))->addClass('docker-statseg-figure')
-	]))
-		->addClass('docker-statseg')
-		->addClass('docker-card-'.$modifier);
+	return Summary::card($label, $value, ['modifier' => $modifier, 'unit' => $unit, 'aside' => $aside]);
 };
 
 $html_page->addItem(
-	(new CDiv([
+	Summary::strip([
 		$makeStatSegment('total', _('Containers'), $overview['total'], '', null),
 		$makeStatSegment('running', _('Running'), $overview['running'], '', null),
 		$makeStatSegment('healthy', _('Healthy'), $overview['healthy'], '', null),
@@ -205,31 +204,14 @@ $html_page->addItem(
 			$makeSparkline($cpu_itemids, 'up', 'sum')
 		),
 		$makeStatSegment('memory', _('Memory (used)'), $memory_parts[0], $memory_parts[1] ?? '',
-			(new CDiv(
-				(new CDiv())
-					->addClass('docker-progress-fill')
-					->setId('docker-memory-fill')
-					->setAttribute('style', 'width: '.$memory_pct.'%;')
-			))->addClass('docker-progress')
+			CapacityBar::render($memory_pct, ['tone' => 'warning', 'threshold' => 101, 'fill_id' => 'docker-memory-fill'])
 		)
-	]))
-		->addClass('docker-statstrip')
+	])
 		->setId('docker-cards')
 );
 
-$problems_badge = (new CDiv())
-	->setId('docker-problems-badge')
-	->addClass(ZBX_STYLE_PROBLEM_ICON_LIST)
-	->addClass('docker-tab-problems');
-
-foreach ($data['problems_by_severity'] as $severity => $count) {
-	$problems_badge->addItem(
-		(new CSpan($count))
-			->addClass(ZBX_STYLE_PROBLEM_ICON_LIST_ITEM)
-			->addClass(CSeverityHelper::getStatusStyle($severity))
-			->setTitle(CSeverityHelper::getName($severity))
-	);
-}
+$problems_badge = ProblemBadges::counts($data['problems_by_severity'])
+	->setId('docker-problems-badge')->addClass('docker-tab-problems');
 
 $tab_items = [
 	(new CSpan(_('Containers')))
@@ -287,14 +269,7 @@ $health_select = (new CTag('select', true, [
 	->addClass('docker-status-select')
 	->setAttribute('aria-label', _('Filter by health'));
 
-$toolbar = (new CDiv([
-	(new CTag('input', false))
-		->setId('docker-search')
-		->setAttribute('type', 'search')
-		->setAttribute('placeholder', _('Filter containers...'))
-		->setAttribute('aria-label', _('Filter containers by name or note'))
-		->setAttribute('autocomplete', 'off')
-		->addClass('docker-search'),
+$table_controls = (new CDiv([
 	(new CDiv([
 		(new CSpan(_('State').':'))->addClass('docker-status-label'),
 		$status_select
@@ -326,27 +301,17 @@ $toolbar = (new CDiv([
 	(new CSpan())->setId('docker-preferences-status')->setAttribute('aria-live', 'polite'),
 	(new CTag('button', true, _('Retry save')))->setAttribute('type', 'button')
 		->setId('docker-preferences-retry')->setAttribute('hidden', 'hidden'),
-	(new CDiv([
-		(new CTag('button', true, '‹'))
-			->setAttribute('type', 'button')
-			->setId('docker-pager-prev')
-			->addClass('docker-pager-btn')
-			->setAttribute('aria-label', _('Previous page')),
-		(new CSpan(''))->setId('docker-pager-info')->addClass('docker-pager-info'),
-		(new CTag('button', true, '›'))
-			->setAttribute('type', 'button')
-			->setId('docker-pager-next')
-			->addClass('docker-pager-btn')
-			->setAttribute('aria-label', _('Next page'))
-	]))->addClass('docker-pager')
+	Pager::controls('docker-pager-prev', 'docker-pager-info', 'docker-pager-next')
 ]))->addClass('docker-toolbar');
 
+$toolbar = new CDiv([
+	SearchControl::bar(_('Filter containers...'), '', ['id' => 'docker-search',
+		'aria-label' => _('Filter containers by name or note')]),
+	$table_controls
+]);
+
 $makeSortHeader = static function (string $label, string $key): CSpan {
-	return (new CSpan([$label, (new CSpan())->addClass('docker-sort-arrow')]))
-		->addClass('docker-sort')
-		->setAttribute('data-sort', $key)
-		->setAttribute('role', 'button')
-		->setAttribute('tabindex', '0');
+	return SortableHeader::render($label, $key, '', ZBX_SORT_UP, ['attribute' => 'data-sort']);
 };
 
 $container_clocks = [];
@@ -415,7 +380,7 @@ foreach ($data['containers'] as $container) {
 			(new CSpan($row['memory']))->addClass('docker-metric-value')->addClass('js-mem-val'),
 			$makeSparkline(
 				$container['memory_itemid'] !== null ? [$container['memory_itemid']] : [],
-				$row['status_kind']
+				$row['status_kind'], 'single', (float) ($data['node']['mem_total'] ?? 0)
 			)
 		]))->addClass('docker-metric-cell'),
 

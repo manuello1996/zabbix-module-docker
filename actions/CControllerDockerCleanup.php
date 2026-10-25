@@ -6,12 +6,14 @@ use API;
 use CController;
 use CControllerResponseData;
 use CControllerResponseFatal;
-use CPagerHelper;
+use Modules\MonitorDocker\Includes\Common\Pager as CPagerHelper;
 use CProfile;
 use CRoleHelper;
 use CUrl;
 use CWebUser;
 use Modules\MonitorDocker\Includes\DockerCollector;
+
+require_once dirname(__DIR__).'/includes/common/bootstrap.php';
 
 class CControllerDockerCleanup extends CController {
 	private const PROFILE_GROUPIDS = 'web.docker.cleanup.filter.groupids';

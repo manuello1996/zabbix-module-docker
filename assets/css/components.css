@@ -1,0 +1,104 @@
+/* Complete component presentation, generated independently for each module. */
+:root {
+	--docker-ui-bg: #fff;
+	--docker-ui-border: #e0e4e9;
+	--docker-ui-text: #1f2c33;
+	--docker-ui-muted: #647580;
+	--docker-ui-accent: #0275b8;
+	--docker-ui-surface: #f4f6f8;
+	--docker-ui-good: #2f9e44;
+	--docker-ui-critical: #e03131;
+	--docker-ui-warning: #e8873a;
+}
+html[theme="dark-theme"], html[theme="hc-dark"] {
+	--docker-ui-bg: #2b2b2b;
+	--docker-ui-border: #454545;
+	--docker-ui-text: #f2f2f2;
+	--docker-ui-muted: #b4b4b4;
+	--docker-ui-accent: #73b6e0;
+	--docker-ui-surface: #333;
+	--docker-ui-good: #60cd89;
+	--docker-ui-critical: #ff6b6b;
+	--docker-ui-warning: #f3b765;
+}
+
+.docker-statstrip { display: flex; flex-wrap: wrap; margin: 0 0 14px; background: var(--docker-ui-bg); border: 1px solid var(--docker-ui-border); border-radius: 10px; }
+.docker-statseg { flex: 1 1 130px; min-width: 100px; padding: 10px 18px 12px; }
+.docker-statseg + .docker-statseg { border-left: 1px solid var(--docker-ui-border); }
+.docker-statseg-label { margin-bottom: 5px; font-size: 10px; font-weight: bold; letter-spacing: .09em; text-transform: uppercase; color: var(--docker-ui-muted); }
+.docker-statseg-figure { display: flex; align-items: baseline; gap: 6px; min-height: 22px; }
+.docker-statseg .docker-card-value { font-size: 19px; font-weight: bold; font-variant-numeric: tabular-nums; line-height: 1.3; color: var(--docker-ui-text); }
+.docker-card-value a { color: inherit; }
+.docker-card-unit { font-size: 11px; color: var(--docker-ui-muted); }
+.docker-statseg-aside { margin-left: auto; align-self: center; min-width: 55px; }
+.docker-statseg-aside .docker-progress { width: 65px; }
+.docker-card-running .docker-card-value,
+.docker-card-healthy .docker-card-value { color: var(--docker-ui-good); }
+.docker-card-stopped .docker-card-value,
+.docker-card-unhealthy .docker-card-value { color: var(--docker-ui-critical); }
+
+.docker-breadcrumb { display: flex; align-items: center; flex-wrap: wrap; min-width: 0; min-height: 22px; margin: 0; padding: 0; font-size: 13px; line-height: 22px; color: var(--docker-ui-text); }
+.docker-breadcrumb a { color: var(--docker-ui-muted); }
+.docker-breadcrumb a:hover { color: var(--docker-ui-accent); text-decoration: underline; }
+.docker-breadcrumb a:focus-visible { outline: 2px solid var(--docker-ui-accent); outline-offset: 2px; }
+.docker-breadcrumb-sep { margin: 0 8px; color: var(--docker-ui-muted); }
+.docker-breadcrumb-current { font-weight: bold; }
+
+.docker-progress { height: 6px; border-radius: 3px; overflow: hidden; background: var(--docker-ui-surface); }
+.docker-progress > .docker-progress-fill { height: 100%; border-radius: inherit; background: var(--docker-ui-good); transition: width .4s ease; }
+.docker-progress[data-tone="warning"] > .docker-progress-fill { background: var(--docker-ui-warning); }
+.docker-progress[data-tone="critical"] > .docker-progress-fill { background: var(--docker-ui-critical); }
+.docker-progress[data-tone="stale"] > .docker-progress-fill { background: var(--docker-ui-muted); }
+
+.docker-sort { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
+.docker-sort:focus-visible { outline: 2px solid var(--docker-ui-accent); outline-offset: 2px; }
+.docker-sort-arrow { display: inline-block; margin-left: 3px; }
+
+.docker-sparkline { flex: 0 0 auto; width: 90px; height: 24px; }
+.docker-spark-svg { display: block; width: 100%; height: 100%; }
+.docker-spark-line { fill: none; stroke: var(--docker-ui-good); stroke-width: 1.5; stroke-linejoin: round; }
+.docker-spark-fill { fill: var(--docker-ui-good); opacity: .12; }
+.docker-spark-flat { stroke: var(--docker-ui-muted); stroke-width: 1; }
+.docker-spark-point { fill: var(--docker-ui-good); }
+.docker-spark-restarting .docker-spark-line { stroke: var(--docker-ui-warning); }
+.docker-spark-restarting .docker-spark-fill { fill: var(--docker-ui-warning); }
+
+.docker-pager { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.docker-pager-info { color: var(--docker-ui-muted); font-size: 11px; white-space: nowrap; }
+.docker-pager-btn { padding: 2px 8px; height: 24px; border: 1px solid var(--docker-ui-border); border-radius: 3px; background: var(--docker-ui-bg); color: var(--docker-ui-text); }
+.docker-pager-btn:disabled { opacity: .5; cursor: default; }
+.docker-pager-btn:not(:disabled):hover { border-color: var(--docker-ui-accent); }
+.docker-pager-btn:focus-visible { outline: 2px solid var(--docker-ui-accent); outline-offset: 2px; }
+
+/* VMware's opt-in refresh control and status. */
+.docker-auto-refresh { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; }
+.docker-refresh-status { margin-left: 8px; font-size: .85em; font-weight: normal; color: var(--docker-ui-muted); }
+
+/* NetApp is the shared standard for expandable table details. */
+.docker-table-wrap { overflow-x: auto; }
+.docker-table-wrap > table > tbody > .docker-metrics-row > td { padding: 0; background: var(--docker-ui-surface); }
+.docker-resource-name { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; }
+.docker-metrics-toggle { border: 0; background: transparent; box-shadow: none; padding: 0; height: auto; line-height: inherit; color: var(--docker-ui-accent); white-space: nowrap; cursor: pointer; }
+.docker-metrics-toggle::before { content: '▸'; display: inline-block; margin-right: 5px; }
+.docker-metrics-toggle[aria-expanded="true"]::before { content: '▾'; }
+.docker-metrics-toggle:hover { background: transparent; color: var(--docker-ui-accent); text-decoration: underline; }
+.docker-metrics-toggle:focus-visible { outline: 2px solid var(--docker-ui-accent); outline-offset: 4px; }
+.docker-metrics-row[hidden] { display: none; }
+.docker-table-wrap > table > tbody > .docker-resource-expanded > td { background: var(--docker-ui-surface); border-bottom: 0; }
+.docker-metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 16px; background: var(--docker-ui-surface); }
+.docker-metric-group { min-width: 0; background: var(--docker-ui-bg); border: 1px solid var(--docker-ui-border); border-radius: 6px; overflow: hidden; }
+.docker-metric-group:only-child { grid-column: 1 / -1; }
+.docker-metric-group h5 { margin: 0; padding: 12px; border-bottom: 1px solid var(--docker-ui-border); font-size: 12px; }
+.docker-metric-group > table { width: 100%; table-layout: fixed; margin: 0; }
+.docker-metric-group > table td, .docker-metric-group > table th { padding: 8px; white-space: normal; overflow-wrap: anywhere; }
+.docker-metric-group:not([data-module-detail-records]) > table th:first-child { width: 38%; }
+.docker-metric-group:not([data-module-detail-records]) > table th:last-child { width: 13%; }
+@media (max-width: 1100px) {
+	.docker-metric-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+	.docker-statseg { flex-basis: 100px; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.docker-progress > .docker-progress-fill { transition: none; }
+}

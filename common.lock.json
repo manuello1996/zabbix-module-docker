@@ -1,0 +1,30 @@
+{
+  "name": "zabbix-module-common",
+  "version": "0.6.1",
+  "source_commit": "4062df350d2f8c669f81a7c9ca73640aeb798358",
+  "source_dirty": false,
+  "source_sha256": "05295276dda4467c00c073f67ed44e9cb876666e728096f3433ae642152bdb48",
+  "files": {
+    "includes/common/Formatting.php": "e69ded4d8233144ba1375f312927642c1d12b993e29214186d77329cda4be8d4",
+    "includes/common/LocationHierarchy.php": "73cc1d98671e1c37f03eb67603c9ec125505c6edc844eca978194c0467d7f2d4",
+    "includes/common/LocationRows.php": "43a473e1bb3d9006568f3d2a99dd545ee0a9063317d2c28051d200984382127d",
+    "includes/common/SearchControl.php": "dbf63691822587e7602de09a069d693d99df2bb9dd00aea9aea6ab519cb25044",
+    "includes/common/Summary.php": "c9914d16ae49d5fecb3bc18db674ad8f4a3d152c0bcbcd5ed161c1483ef82476",
+    "includes/common/Breadcrumbs.php": "5a2466f3ea1ca58c423bc9ac77ca660b382da69b04dea73615a0b0620d7846a3",
+    "includes/common/ProblemBadges.php": "112e352f51de318b4e377d16c5af403703fbbdfec176fd5393b1cd21d678c1c8",
+    "includes/common/CapacityBar.php": "90cf1cd2676541bdd8aa1f08dba1a827c59f83334bfd2b789ed8e57b93169292",
+    "includes/common/SortableHeader.php": "e74c407cc421aa32640d7e44c9b154ba26d575ef8390103a13bccf5ec2ebd96b",
+    "includes/common/Sparkline.php": "ba18e0e9fa7b3d1f28c4f16818d4d0f34144db91f8dcbb3a9f8f7b7609cb5adb",
+    "includes/common/ItemActions.php": "7c04be677f633a98aca00edeb6b3239f22a25c1604fd833c15e6afc21ec45fac",
+    "includes/common/Pager.php": "322a45b1f5be566b7fdc602ab9a55d10b477bf3008271d73f00c4232ad935892",
+    "includes/common/RowDetails.php": "aa45a1542bb0cd5e1f66def123867f8ae4256d0b862efa880fc7932c5b641046",
+    "includes/common/AutoRefresh.php": "dc2e3b75ee528ad18a34456d3d0a5c5b9f4ca4ba9603767a6615a3dbc294946b",
+    "includes/common/bootstrap.php": "13f17bfc432345ad0e66e66a01f7c22fac4a6e649029f8037527e8163d2eb80c",
+    "assets/css/common.css": "14801395ccb70c5d04a2948c41425720ce28d6363f2fa86f5b61c41196cebdca",
+    "assets/js/common.js": "98ee4bf0e4bc1f06ab998ca298bab8820051e269cee8de7c85367cedca29c310",
+    "assets/css/components.css": "7a28880c18dee9a3a5873d2e6779c1fadac842b5572962d2f1872f7b674bedc2",
+    "assets/js/components.js": "4f2f63cfda07af724ae3ca4c0d34f4fca9362767bca064070c6a50403d9e46f5",
+    "tools/release.py": "3a9cb80d8359de42dfa47cc9e74680782aac044fe0200b9ec5c6eca1a36c1042",
+    "release.ps1": "191a9100e83e6eb339903e2124a172da2985bfe51cee98ac812e3f6bf04e3085"
+  }
+}

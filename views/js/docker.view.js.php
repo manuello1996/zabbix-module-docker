@@ -18,8 +18,6 @@ window.monitor_docker = new class {
 		this._page_size = preferences.page_size;
 		this._columns = [...preferences.columns];
 		this._restoreUrl();
-		this._search_debounce = null;
-		this._image_filter_debounce = null;
 		this._image_sort = {field: null, dir: 1};
 		this._modal = null;
 		this._modal_trigger = null;
@@ -383,62 +381,20 @@ window.monitor_docker = new class {
 	}
 
 	_renderSparkline(holder, history, kind) {
-		const width = 100;
-		const height = 24;
-		const pad = 3;
-		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-
-		svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-		svg.setAttribute('preserveAspectRatio', 'none');
-		svg.classList.add('docker-spark-svg');
-
-		if (history.length < 2 || kind === 'down' || kind === 'off') {
-			const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-			const y = height - pad - 2;
-
-			line.setAttribute('x1', '0');
-			line.setAttribute('y1', String(y));
-			line.setAttribute('x2', String(width));
-			line.setAttribute('y2', String(y));
-			line.classList.add('docker-spark-flat');
-			svg.append(line);
+		if (holder.dataset.sparkTotal !== undefined) {
+			const total = Number(holder.dataset.sparkTotal);
+			history = Number.isFinite(total) && total > 0 && Array.isArray(history)
+				? history.map(point => Array.isArray(point)
+					? [point[0], point[1] === null || point[1] === '' ? point[1] : Number(point[1]) / total * 100]
+					: point)
+				: [];
 		}
-		else {
-			if (history.length > 60) {
-				const step = Math.ceil(history.length / 60);
-
-				history = history.filter((point, index) => index % step === 0);
-			}
-
-			const values = history.map((point) => Number(point[1]));
-			const min = Math.min(...values);
-			const max = Math.max(...values);
-			const range = max - min;
-			const points = values.map((value, index) => {
-				const x = values.length > 1 ? index / (values.length - 1) * width : 0;
-				const y = range > 0
-					? height - pad - ((value - min) / range) * (height - 2 * pad)
-					: height / 2;
-
-				return `${x.toFixed(1)},${y.toFixed(1)}`;
-			});
-
-			const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-
-			polygon.setAttribute('points', `0,${height - 1} ${points.join(' ')} ${width},${height - 1}`);
-			polygon.classList.add('docker-spark-fill');
-			svg.append(polygon);
-
-			const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-
-			polyline.setAttribute('points', points.join(' '));
-			polyline.setAttribute('fill', 'none');
-			polyline.classList.add('docker-spark-line');
-			svg.append(polyline);
-		}
-
-		holder.replaceChildren(svg);
-		holder.removeAttribute('aria-label');
+		window.DockerCommon.Sparkline.draw(holder, history, {
+			singlePoint: 'flat', maxPoints: 60, disabled: kind === 'down' || kind === 'off',
+			emptyLabel: <?= json_encode(_('No history data')) ?>,
+			labels: {min: <?= json_encode(_('Minimum')) ?>, current: <?= json_encode(_('Current')) ?>,
+				max: <?= json_encode(_('Maximum')) ?>}
+		});
 	}
 
 	_initEditShim() {
@@ -603,6 +559,8 @@ window.monitor_docker = new class {
 			});
 
 			row.hidden = !show;
+			const details = row.dataset.imageDetails ? document.getElementById(row.dataset.imageDetails) : null;
+			if (details) details.hidden = !show || row.querySelector('[data-module-details-toggle]')?.getAttribute('aria-expanded') !== 'true';
 			visible += show ? 1 : 0;
 		}
 
@@ -625,12 +583,8 @@ window.monitor_docker = new class {
 			return;
 		}
 
-		if (this._image_sort.field === field) {
-			this._image_sort.dir = -this._image_sort.dir;
-		}
-		else {
-			this._image_sort = {field, dir: 1};
-		}
+		const next = window.DockerCommon.SortableHeader.toggle(this._image_sort.field, this._image_sort.dir, field);
+		this._image_sort = {field: next.field, dir: next.direction};
 
 		const {dir} = this._image_sort;
 		const property = 'imageSort' + field.charAt(0).toUpperCase() + field.slice(1);
@@ -646,29 +600,13 @@ window.monitor_docker = new class {
 				? dir * difference
 				: (a.dataset.imageName ?? '').localeCompare(b.dataset.imageName ?? '');
 		});
-		tbody.append(...rows);
-
-		for (const header of root.querySelectorAll('[data-image-sort]')) {
-			const active = header.dataset.imageSort === field;
-			const arrow = header.querySelector('.docker-sort-arrow');
-			const th = header.closest('th');
-
-			arrow?.replaceChildren();
-
-			if (active) {
-				if (arrow !== null) {
-					const icon = document.createElement('span');
-
-					icon.className = dir === 1 ? 'arrow-up' : 'arrow-down';
-					arrow.append(icon);
-				}
-
-				th?.setAttribute('aria-sort', dir === 1 ? 'ascending' : 'descending');
-			}
-			else {
-				th?.removeAttribute('aria-sort');
-			}
+		for (const row of rows) {
+			tbody.append(row);
+			const details = row.dataset.imageDetails ? document.getElementById(row.dataset.imageDetails) : null;
+			if (details) tbody.append(details);
 		}
+
+		window.DockerCommon.SortableHeader.update(root.querySelectorAll('[data-image-sort]'), field, dir, 'imageSort');
 	}
 
 	_expandGraphGroup(group, expand) {
@@ -699,26 +637,19 @@ window.monitor_docker = new class {
 		this._content = content;
 		this._panel = panel;
 
-		panel.addEventListener('input', (e) => {
-			if (e.target.id === 'docker-graphs-search') {
-				this._panel_filters.graphs_search = e.target.value;
+		this._panelSearch = new window.DockerCommon.SearchInput(panel, {
+			selector: '#docker-graphs-search, [data-image-filter]',
+			onChange: (input, immediate) => {
+				const graphs = input.id === 'docker-graphs-search';
+				this._panel_filters[graphs ? 'graphs_search' : 'images_' + input.dataset.imageFilter] = input.value;
 				this._syncUrl();
-				clearTimeout(this._graphs_search_debounce);
-
-				this._graphs_search_debounce = setTimeout(() => {
-					this._filterGraphs(e.target.value.trim().toLowerCase());
-				}, 250);
-			}
-			else if (e.target.matches('[data-image-filter]')) {
-				this._panel_filters['images_' + e.target.dataset.imageFilter] = e.target.value;
-				this._syncUrl();
-				clearTimeout(this._image_filter_debounce);
-
-				this._image_filter_debounce = setTimeout(() => {
-					this._filterImages(panel);
-				}, 150);
+				this._panelSearch.queue(() => graphs
+					? this._filterGraphs(input.value.trim().toLowerCase()) : this._filterImages(panel),
+					immediate, graphs ? 250 : 150);
 			}
 		});
+
+		window.DockerCommon.RowDetails.bind(panel);
 
 		panel.addEventListener('click', (e) => {
 			if (e.target.closest('.docker-topo-dns-link') !== null) {
@@ -789,10 +720,8 @@ window.monitor_docker = new class {
 		panel.addEventListener('keydown', (e) => {
 			const image_sort = e.target.closest('[data-image-sort]');
 
-			if (image_sort !== null && panel.contains(image_sort) && (e.key === 'Enter' || e.key === ' ')) {
-				e.preventDefault();
-				this._sortImages(panel, image_sort.dataset.imageSort);
-			}
+			if (image_sort !== null && panel.contains(image_sort)) window.DockerCommon.SortableHeader.key(e,
+				() => this._sortImages(panel, image_sort.dataset.imageSort));
 		});
 
 		for (const tab of document.querySelectorAll('.docker-tab[data-tab]')) {
@@ -916,14 +845,12 @@ window.monitor_docker = new class {
 		const search = document.getElementById('docker-search');
 
 		if (search !== null) {
-			search.addEventListener('input', () => {
-				clearTimeout(this._search_debounce);
-
-				this._search_debounce = setTimeout(() => {
-					this._table_state.search = search.value.trim().toLowerCase();
-					this._table_state.page = 1;
+			this._containerSearch = new window.DockerCommon.SearchInput(search.closest('[data-module-search]'), {
+				selector: '#docker-search', delay: 250,
+				onChange: (input, immediate) => this._containerSearch.queue(() => {
+					Object.assign(this._table_state, {search: input.value.trim().toLowerCase(), page: 1});
 					this._applyTableState();
-				}, 250);
+				}, immediate)
 			});
 		}
 
@@ -939,41 +866,16 @@ window.monitor_docker = new class {
 			this._applyTableState();
 		});
 
-		document.getElementById('docker-pager-prev')?.addEventListener('click', () => {
-			this._table_state.page = Math.max(1, this._table_state.page - 1);
+		window.DockerCommon.Pager.bind({
+			previous: document.getElementById('docker-pager-prev'), next: document.getElementById('docker-pager-next')
+		}, step => { this._table_state.page += step; this._applyTableState(); });
+
+		window.DockerCommon.SortableHeader.bind(document.querySelectorAll('.docker-sort[data-sort]'), header => {
+			const next = window.DockerCommon.SortableHeader.toggle(this._table_state.sort, this._table_state.dir, header.dataset.sort);
+			Object.assign(this._table_state, {sort: next.field, dir: next.direction, page: 1});
 			this._applyTableState();
+			this._schedulePreferenceSave();
 		});
-
-		document.getElementById('docker-pager-next')?.addEventListener('click', () => {
-			this._table_state.page++;
-			this._applyTableState();
-		});
-
-		for (const header of document.querySelectorAll('.docker-sort')) {
-			const toggle = () => {
-				const key = header.dataset.sort;
-
-				if (this._table_state.sort === key) {
-					this._table_state.dir = -this._table_state.dir;
-				}
-				else {
-					this._table_state.sort = key;
-					this._table_state.dir = 1;
-				}
-
-				this._table_state.page = 1;
-				this._applyTableState();
-				this._schedulePreferenceSave();
-			};
-
-			header.addEventListener('click', toggle);
-			header.addEventListener('keydown', (e) => {
-				if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					toggle();
-				}
-			});
-		}
 	}
 
 	_applyTableState() {
@@ -1051,60 +953,16 @@ window.monitor_docker = new class {
 			&& (health === 'all' || row.dataset.health === health)
 		);
 
-		const pages = Math.max(1, Math.ceil(filtered.length / this._page_size));
-
-		this._table_state.page = Math.min(this._table_state.page, pages);
+		const page = window.DockerCommon.Pager.slice(filtered, this._table_state.page, this._page_size);
+		this._table_state.page = page.page;
 		this._syncUrl();
-
-		const start = (this._table_state.page - 1) * this._page_size;
-		const page_rows = new Set(filtered.slice(start, start + this._page_size));
-
-		for (const row of rows) {
-			row.hidden = !page_rows.has(row);
-		}
-
-		const info = document.getElementById('docker-pager-info');
-
-		if (info !== null) {
-			info.textContent = filtered.length > 0
-				? `${start + 1}-${start + page_rows.size} ` + <?= json_encode(_('of')) ?> + ` ${filtered.length}`
-				: '0 ' + <?= json_encode(_('of')) ?> + ' 0';
-		}
-
-		const prev = document.getElementById('docker-pager-prev');
-		const next = document.getElementById('docker-pager-next');
-
-		if (prev !== null) {
-			prev.disabled = this._table_state.page <= 1;
-		}
-
-		if (next !== null) {
-			next.disabled = this._table_state.page >= pages;
-		}
-
-		for (const header of document.querySelectorAll('.docker-sort')) {
-			const arrow = header.querySelector('.docker-sort-arrow');
-			const th = header.closest('th');
-
-			if (arrow !== null) {
-				arrow.innerHTML = '';
-			}
-
-			if (sort !== null && header.dataset.sort === sort) {
-				if (arrow !== null) {
-					const icon = document.createElement('span');
-
-					icon.className = dir === 1 ? 'arrow-up' : 'arrow-down';
-					arrow.append(icon);
-				}
-
-				th?.setAttribute('aria-sort', dir === 1 ? 'ascending' : 'descending');
-			}
-			else {
-				th?.removeAttribute('aria-sort');
-			}
-		}
-
+		const pageRows = new Set(page.rows);
+		for (const row of rows) row.hidden = !pageRows.has(row);
+		window.DockerCommon.Pager.update({
+			previous: document.getElementById('docker-pager-prev'), next: document.getElementById('docker-pager-next'),
+			info: document.getElementById('docker-pager-info')
+		}, page, <?= json_encode(_('of')) ?>);
+		window.DockerCommon.SortableHeader.update(document.querySelectorAll('.docker-sort[data-sort]'), sort, dir);
 	}
 
 	_initContainerModal() {

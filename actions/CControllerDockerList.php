@@ -2,17 +2,21 @@
 
 namespace Modules\MonitorDocker\Actions;
 
+use Modules\MonitorDocker\Includes\Common\AutoRefresh;
+
 use API;
 use CController;
 use CControllerResponseData;
 use CControllerResponseFatal;
-use CPagerHelper;
+use Modules\MonitorDocker\Includes\Common\Pager as CPagerHelper;
 use CProfile;
 use CRoleHelper;
 use CSettingsHelper;
 use CUrl;
 use CWebUser;
 use Modules\MonitorDocker\Includes\DockerCollector;
+
+require_once dirname(__DIR__).'/includes/common/bootstrap.php';
 
 class CControllerDockerList extends CController {
 	public const PROFILE_GROUPIDS = 'web.docker.list.filter.groupids';
@@ -290,7 +294,7 @@ class CControllerDockerList extends CController {
 			'nodes' => $nodes,
 			'totals' => $totals,
 			'active_tab' => CProfile::get('web.docker.list.filter.active', 1),
-			'refresh_interval' => timeUnitToSeconds(CWebUser::getRefresh())
+			'refresh_interval' => AutoRefresh::interval(timeUnitToSeconds(CWebUser::getRefresh()))
 		]);
 		$response->setTitle(_('Docker nodes'));
 

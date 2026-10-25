@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "source_directory": "zabbix-module-common",
+  "tokens": {
+    "CSS_PREFIX": "docker",
+    "BORDER": "docker-card-border",
+    "MUTED": "docker-text-muted",
+    "TEXT": "docker-text",
+    "STRONG": "docker-strong",
+    "JS_NAMESPACE": "DockerCommon",
+    "LOCATION_DATA_PREFIX": "docker-location",
+    "LOCATION_DEPTH_VAR": "docker-location-depth"
+  }
+}

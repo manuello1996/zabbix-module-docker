@@ -1,14 +1,15 @@
 <?php declare(strict_types = 0);
+use Modules\MonitorDocker\Includes\Common\Summary;
+use Modules\MonitorDocker\Includes\Common\SortableHeader;
 
 use Modules\MonitorDocker\Includes\DockerFormatter;
+
+require_once dirname(__DIR__).'/includes/common/bootstrap.php';
 
 $this->addJsFile('class.tagfilteritem.js');
 
 $make_stat = static function (string $label, $value): CDiv {
-	return (new CDiv([
-		(new CSpan($label))->addClass('docker-card-unit'),
-		(new CSpan((string) $value))->addClass('docker-card-value')
-	]))->addClass('docker-stat');
+	return Summary::card($label, (string) $value);
 };
 
 $html_page = (new CHtmlPage())
@@ -83,7 +84,7 @@ $html_page->addItem(
 );
 
 $html_page->addItem(
-	(new CDiv([
+	Summary::strip([
 		$make_stat(_('Hosts with candidates'), $data['totals']['hosts']),
 		$make_stat(_('Unused images'), $data['totals']['hosts_with_image_data'] > 0
 			? $data['totals']['images']
@@ -91,7 +92,7 @@ $html_page->addItem(
 		$make_stat(_('Stopped containers'), $data['totals']['containers']),
 		$make_stat(_('Unused volumes'), $data['totals']['volumes']),
 		$make_stat(_('Potentially reclaimable'), DockerFormatter::bytes($data['totals']['bytes']))
-	]))->addClass('docker-hostbar-stats')->addClass('docker-node-stats')
+	])
 );
 
 $html_page->addItem(
@@ -107,13 +108,13 @@ $sort_url = (new CUrl('zabbix.php'))->setArgument('action', 'docker.cleanup');
 
 $table = (new CTableInfo())
 	->setHeader([
-		make_sorting_header(_('Docker host'), 'name', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
-		make_sorting_header(_('Notes'), 'notes', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
-		make_sorting_header(_('Unused images'), 'images', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
-		make_sorting_header(_('Stopped containers'), 'containers', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
-		make_sorting_header(_('Unused volumes'), 'volumes', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
-		make_sorting_header(_('Potentially reclaimable'), 'bytes', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
-		make_sorting_header(_('Updated'), 'lastclock', $data['sort'], $data['sortorder'], $sort_url->getUrl())
+		SortableHeader::native(_('Docker host'), 'name', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
+		SortableHeader::native(_('Notes'), 'notes', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
+		SortableHeader::native(_('Unused images'), 'images', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
+		SortableHeader::native(_('Stopped containers'), 'containers', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
+		SortableHeader::native(_('Unused volumes'), 'volumes', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
+		SortableHeader::native(_('Potentially reclaimable'), 'bytes', $data['sort'], $data['sortorder'], $sort_url->getUrl()),
+		SortableHeader::native(_('Updated'), 'lastclock', $data['sort'], $data['sortorder'], $sort_url->getUrl())
 	])
 	->setNoDataMessage(_('No cleanup candidates found in the retained Docker data. A host without retained image, container-state or volume data is not treated as clean.'));
 

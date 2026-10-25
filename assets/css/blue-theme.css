@@ -37,36 +37,6 @@
 	margin: 4px 0 14px;
 }
 
-.docker-breadcrumb {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	font-size: 13px;
-}
-
-.docker-breadcrumb a {
-	color: var(--docker-text-muted);
-}
-
-.docker-breadcrumb a:hover {
-	color: var(--docker-accent);
-}
-
-.docker-breadcrumb a:focus-visible {
-	outline: 2px solid var(--docker-accent);
-	outline-offset: 2px;
-}
-
-.docker-breadcrumb-sep {
-	color: var(--docker-text-muted);
-}
-
-.docker-breadcrumb-current {
-	color: var(--docker-text);
-	font-weight: bold;
-	font-size: 14px;
-}
-
 .docker-topbar-info {
 	display: flex;
 	align-items: center;
@@ -218,142 +188,15 @@
 	opacity: .9;
 }
 
-.docker-statstrip {
-	display: flex;
-	align-items: stretch;
-	flex-wrap: wrap;
-	margin-bottom: 4px;
-	background-color: var(--docker-card-bg);
-	border: 1px solid var(--docker-card-border);
-	border-radius: 10px;
-}
-
-.docker-statseg {
-	flex: 1 1 0;
-	min-width: 150px;
-	padding: 10px 18px 12px;
-}
-
-.docker-statseg + .docker-statseg {
-	border-left: 1px solid var(--docker-card-border);
-}
-
-.docker-statseg-label {
-	margin-bottom: 5px;
-	font-size: 10px;
-	font-weight: bold;
-	letter-spacing: .09em;
-	text-transform: uppercase;
-	color: var(--docker-text-muted);
-	white-space: nowrap;
-}
-
-.docker-statseg-figure {
-	display: flex;
-	align-items: baseline;
-	gap: 6px;
-	min-height: 22px;
-}
-
-.docker-statseg .docker-card-value {
-	font-size: 19px;
-	font-weight: bold;
-	line-height: 1;
-	color: var(--docker-text);
-	font-variant-numeric: tabular-nums;
-}
-
-.docker-statseg .docker-card-unit {
-	font-size: 12px;
-	color: var(--docker-text-muted);
-}
-
-.docker-statseg-aside {
-	flex: 1 1 auto;
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	align-self: center;
-	min-width: 0;
-}
-
-.docker-statseg-aside .docker-sparkline {
-	width: 90px;
-	height: 22px;
-}
-
-.docker-statseg-aside .docker-progress {
-	width: 100%;
-	max-width: 110px;
-}
-
-.docker-card-running .docker-card-value {
-	color: var(--docker-running);
-}
-
-.docker-card-healthy .docker-card-value {
-	color: var(--docker-running);
-}
-
-.docker-card-stopped .docker-card-value {
-	color: var(--docker-stopped);
-}
-
-.docker-card-unhealthy .docker-card-value {
-	color: var(--docker-stopped);
-}
-
-.docker-card-memory .docker-progress-fill {
-	background-color: var(--docker-orange);
-}
-
-.docker-progress {
-	height: 6px;
-	border-radius: 3px;
-	overflow: hidden;
-	background-color: var(--docker-surface-muted);
-}
-
-.docker-progress-fill {
-	height: 100%;
-	border-radius: 3px;
-	background-color: var(--docker-progress);
-	transition: width .4s ease;
-}
-
-.docker-progress-crit {
-	background-color: var(--docker-crit);
-}
-
 .docker-tabs {
-	display: flex;
 	align-items: center;
-	gap: 4px;
-	margin: 14px 0 16px;
-	border-bottom: 1px solid var(--docker-card-border);
 	overflow-x: auto;
 }
 
 .docker-tab {
-	padding: 9px 12px 11px;
-	margin-bottom: -1px;
-	border-bottom: 2px solid transparent;
-	color: var(--docker-text-muted);
 	text-decoration: none;
-	white-space: nowrap;
 	cursor: pointer;
 	user-select: none;
-}
-
-.docker-tab:hover {
-	color: var(--docker-text);
-	text-decoration: none;
-}
-
-.docker-tab-active {
-	color: var(--docker-strong);
-	border-bottom-color: var(--docker-strong);
-	font-weight: bold;
 }
 
 .docker-tab:focus-visible {
@@ -453,7 +296,7 @@
 	font-variant-numeric: tabular-nums;
 }
 
-.docker-graphgroup-body {
+.docker-graphgroup-body:not([data-module-detail-grid]) {
 	padding: 8px 14px 12px;
 	border-top: 1px solid var(--docker-card-border);
 }
@@ -711,47 +554,6 @@
 	cursor: pointer;
 }
 
-.docker-pager {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	margin-left: auto;
-}
-
-.docker-pager-info {
-	font-size: 12.5px;
-	color: var(--docker-text-muted);
-	font-variant-numeric: tabular-nums;
-}
-
-.docker-pager-btn {
-	box-sizing: border-box;
-	width: 26px;
-	height: 26px;
-	padding: 0 0 2px;
-	border: 1px solid var(--docker-card-border);
-	border-radius: 6px;
-	background-color: var(--docker-card-bg);
-	color: var(--docker-text);
-	font-size: 15px;
-	line-height: 1;
-	cursor: pointer;
-}
-
-.docker-pager-btn:disabled {
-	opacity: .35;
-	cursor: default;
-}
-
-.docker-pager-btn:not(:disabled):hover {
-	border-color: var(--docker-text-muted);
-}
-
-.docker-pager-btn:focus-visible {
-	outline: 2px solid var(--docker-accent);
-	outline-offset: 1px;
-}
-
 #docker-table thead th,
 #docker-nodes-table thead th {
 	font-size: 11px;
@@ -857,41 +659,6 @@
 	font-variant-numeric: tabular-nums;
 }
 
-.docker-sparkline {
-	flex: 0 0 auto;
-	width: 90px;
-	height: 24px;
-}
-
-.docker-spark-svg {
-	display: block;
-	width: 100%;
-	height: 100%;
-}
-
-.docker-spark-line {
-	stroke: var(--docker-running);
-	stroke-width: 1.5;
-}
-
-.docker-spark-fill {
-	fill: var(--docker-running);
-	fill-opacity: .12;
-}
-
-.docker-spark-flat {
-	stroke: var(--docker-text-muted);
-	stroke-width: 1.5;
-}
-
-.docker-spark-restarting .docker-spark-line {
-	stroke: var(--docker-stopped);
-}
-
-.docker-spark-restarting .docker-spark-fill {
-	fill: var(--docker-stopped);
-}
-
 .docker-netcell {
 	display: flex;
 	align-items: center;
@@ -912,28 +679,11 @@
 	color: var(--docker-orange);
 }
 
-.docker-sort,
-.docker-image-sort {
-	cursor: pointer;
-	user-select: none;
-}
-
-.docker-sort:focus-visible,
-.docker-image-sort:focus-visible {
-	outline: 2px solid var(--docker-accent);
-	outline-offset: 1px;
-}
-
-.docker-sort-arrow {
-	margin-left: 4px;
-}
-
 .docker-table-stats {
 	padding: 8px 0;
 	color: var(--docker-text-muted);
 	font-size: 12px;
 }
-
 
 .docker-data-freshness {
 	display: flex;
@@ -944,42 +694,9 @@
 	color: var(--docker-text-muted);
 }
 
-.docker-hostbar-stats {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 8px;
-}
-
-.docker-node-stats {
-	margin-bottom: 14px;
-}
-
 .docker-cleanup-note {
 	margin: -2px 0 14px;
 	font-size: 12px;
-	color: var(--docker-text-muted);
-}
-
-.docker-stat {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	padding: 5px 12px;
-	background-color: var(--docker-card-bg);
-	border: 1px solid var(--docker-card-border);
-	border-radius: 6px;
-	white-space: nowrap;
-}
-
-.docker-stat .docker-card-value {
-	font-size: 14px;
-	font-weight: bold;
-	color: var(--docker-text);
-}
-
-.docker-stat .docker-card-unit {
-	font-size: 11px;
 	color: var(--docker-text-muted);
 }
 
@@ -1048,56 +765,6 @@
 	display: none;
 }
 
-.docker-image-usage {
-	min-width: 235px;
-}
-
-.docker-image-usage-summary {
-	display: flex;
-	align-items: center;
-	gap: 5px 10px;
-	flex-wrap: wrap;
-	cursor: pointer;
-}
-
-.docker-image-usage-summary::marker {
-	color: var(--docker-text-muted);
-}
-
-.docker-image-usage-total {
-	color: var(--docker-text);
-	font-weight: 600;
-}
-
-.docker-image-usage-list {
-	display: flex;
-	flex-direction: column;
-	gap: 5px;
-	margin-top: 8px;
-	padding: 8px;
-	border: 1px solid var(--docker-card-border);
-	border-radius: 6px;
-	background-color: var(--docker-surface-muted);
-}
-
-.docker-image-usage-container {
-	display: grid;
-	grid-template-columns: auto minmax(0, 1fr) auto;
-	align-items: center;
-	gap: 7px;
-}
-
-.docker-image-usage-container a {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.docker-image-usage-state {
-	color: var(--docker-text-muted);
-	font-size: 11px;
-}
-
 .docker-mount-path {
 	display: block;
 	max-width: 320px;
@@ -1131,7 +798,7 @@
 	margin-left: 0;
 }
 
-.docker-compose-project .docker-graphgroup-body {
+.docker-compose-project .docker-graphgroup-body:not([data-module-detail-grid]) {
 	overflow-x: auto;
 }
 
@@ -1241,8 +908,7 @@
 	overflow-x: auto;
 }
 
-@media (max-width: 900px) {
-	.docker-compose-container {
+@media (max-width: 900px) {.docker-compose-container {
 		margin-left: 0;
 	}
 
@@ -1253,8 +919,7 @@
 	.docker-compose-container-service,
 	.docker-compose-container-image {
 		grid-column: 2 / -1;
-	}
-}
+	}}
 
 .docker-status-running {
 	color: var(--docker-running);
@@ -1488,8 +1153,7 @@
 	background-color: var(--docker-series-2);
 }
 
-@media (max-width: 1100px) {
-	.docker-modal-content {
+@media (max-width: 1100px) {.docker-modal-content {
 		grid-template-columns: minmax(0, 1fr);
 	}
 
@@ -1499,23 +1163,13 @@
 
 	.docker-image-filters {
 		grid-template-columns: repeat(2, minmax(130px, 1fr));
-	}
-}
+	}}
 
-@media (max-width: 600px) {
-	.docker-image-filters {
+@media (max-width: 600px) {.docker-image-filters {
 		grid-template-columns: minmax(0, 1fr);
-	}
-}
+	}}
 
 .docker-muted {
-	color: var(--docker-text-muted);
-}
-
-.docker-refresh-status {
-	margin-left: 8px;
-	font-size: .85em;
-	font-weight: normal;
 	color: var(--docker-text-muted);
 }
 
@@ -1571,14 +1225,6 @@
 .docker-footer a:hover {
 	color: var(--docker-accent);
 }
-
-@media (prefers-reduced-motion: reduce) {
-	.docker-progress-fill {
-		transition: none;
-		animation: none;
-	}
-}
-
 
 .docker-column-settings { position: relative; }
 .docker-column-settings summary { cursor: pointer; }

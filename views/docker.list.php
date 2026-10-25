@@ -1,6 +1,11 @@
 <?php declare(strict_types = 0);
 
+use Modules\MonitorDocker\Includes\Common\AutoRefresh;
+use Modules\MonitorDocker\Includes\Common\Summary;
+
 use Modules\MonitorDocker\Includes\DockerImageAge;
+
+require_once dirname(__DIR__).'/includes/common/bootstrap.php';
 
 $image_age = DockerImageAge::get();
 
@@ -8,15 +13,7 @@ $this->addJsFile('class.tagfilteritem.js');
 $this->includeJsFile('docker.list.js.php', ['refresh_interval' => $data['refresh_interval']]);
 
 $makeStatSegment = static function (string $modifier, string $label, string $value, string $unit): CDiv {
-	return (new CDiv([
-		(new CDiv($label))->addClass('docker-statseg-label'),
-		(new CDiv([
-			(new CSpan($value))->addClass('docker-card-value'),
-			$unit !== '' ? (new CSpan($unit))->addClass('docker-card-unit') : null
-		]))->addClass('docker-statseg-figure')
-	]))
-		->addClass('docker-statseg')
-		->addClass('docker-card-'.$modifier);
+	return Summary::card($label, $value, ['modifier' => $modifier, 'unit' => $unit]);
 };
 
 $html_page = (new CHtmlPage())
@@ -24,6 +21,8 @@ $html_page = (new CHtmlPage())
 	->setControls(
 		(new CTag('nav', true,
 			(new CList())
+				->addItem((new CTag('button', true, _('Refresh')))->setAttribute('type', 'button')->setId('docker-list-refresh'))
+				->addItem(AutoRefresh::control('docker-list-auto-refresh', $data['refresh_interval']))
 				->addItem(new CRedirectButton(
 					_('Docker Cleanup'),
 					(new CUrl('zabbix.php'))->setArgument('action', 'docker.cleanup')
@@ -128,13 +127,12 @@ $html_page->addItem(
 
 $html_page->addItem(
 	(new CDiv([
-		(new CDiv([
+		Summary::strip([
 			$makeStatSegment('nodes', _('Nodes'), (string) $data['totals']['nodes'], ''),
 			$makeStatSegment('total', _('Containers'), (string) $data['totals']['total'], ''),
 			$makeStatSegment('running', _('Running'), (string) $data['totals']['running'], ''),
 			$makeStatSegment('stopped', _('Stopped / Err'), (string) $data['totals']['stopped'], '')
-		]))
-			->addClass('docker-statstrip')
+		])
 			->setId('docker-list-cards')
 	]))->addClass('docker-section')
 );
@@ -211,13 +209,8 @@ $html_page
 	->addItem(
 		(new CDiv([
 
-			(new CTag('h4', true, [
-				_('Docker nodes'),
-				(new CSpan())
-					->setId('docker-list-refresh-status')
-					->addClass('docker-refresh-status')
-					->setAttribute('aria-live', 'polite')
-			]))->addClass('docker-section-title'),
+			(new CTag('h4', true, _('Docker nodes')))->addClass('docker-section-title'),
+			AutoRefresh::status('docker-list-refresh-status'),
 			$table,
 
 			$data['paging']->setId('docker-list-paging')
