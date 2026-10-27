@@ -37,6 +37,16 @@ html[theme="dark-theme"], html[theme="hc-dark"] {
 .docker-card-stopped .docker-card-value,
 .docker-card-unhealthy .docker-card-value { color: var(--docker-ui-critical); }
 
+/* Detail pages use independent cards so figures and units cannot be squeezed by charts. */
+.docker-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 14px; margin: 0 0 16px; }
+.docker-summary-grid > .docker-statseg { min-width: 0; padding: 16px 18px; border: 1px solid var(--docker-ui-border); border-radius: 8px; background: var(--docker-ui-bg); }
+.docker-summary-grid .docker-statseg-figure { flex-wrap: wrap; align-items: center; gap: 10px; }
+.docker-summary-grid .docker-card-value { white-space: nowrap; font-size: 24px; line-height: 1.4; }
+.docker-summary-grid .docker-statseg-aside { flex: 0 0 100%; min-width: 0; margin: 0; }
+.docker-summary-grid .docker-statseg-aside > a { display: block; }
+.docker-summary-grid .docker-sparkline, .docker-summary-grid .docker-progress { width: 100%; }
+.docker-statseg-footer { margin-top: 10px; color: var(--docker-ui-muted); font-size: 12px; overflow-wrap: anywhere; }
+
 .docker-breadcrumb { display: flex; align-items: center; flex-wrap: wrap; min-width: 0; min-height: 22px; margin: 0; padding: 0; font-size: 13px; line-height: 22px; color: var(--docker-ui-text); }
 .docker-breadcrumb a { color: var(--docker-ui-muted); }
 .docker-breadcrumb a:hover { color: var(--docker-ui-accent); text-decoration: underline; }

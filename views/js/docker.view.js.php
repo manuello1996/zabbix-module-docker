@@ -32,7 +32,6 @@ window.monitor_docker = new class {
 		this._initTabs();
 		this._initTableControls();
 		this._initContainerModal();
-		this._initEditShim();
 		this._initTopbar();
 		this._initHostFilter();
 		this._syncTableControls();
@@ -395,56 +394,6 @@ window.monitor_docker = new class {
 			labels: {min: <?= json_encode(_('Minimum')) ?>, current: <?= json_encode(_('Current')) ?>,
 				max: <?= json_encode(_('Maximum')) ?>}
 		});
-	}
-
-	_initEditShim() {
-		if (window.view !== undefined && typeof window.view.editTrigger === 'function') {
-			return;
-		}
-
-		const on_submit = (e) => {
-			const data = e.detail;
-
-			if ('success' in data) {
-				postMessageOk(data.success.title);
-
-				if ('messages' in data.success) {
-					postMessageDetails('success', data.success.messages);
-				}
-			}
-			else if ('error' in data) {
-				postMessageError(data.error.title);
-
-				if ('messages' in data.error) {
-					postMessageDetails('error', data.error.messages);
-				}
-			}
-
-			location.href = location.href;
-		};
-
-		window.view = {
-			editTrigger(trigger_data) {
-				const overlay = PopUp('trigger.edit', trigger_data, {
-					dialogueid: 'trigger-edit',
-					dialogue_class: 'modal-popup-large',
-					prevent_navigation: true
-				});
-
-				overlay.$dialogue[0].addEventListener('dialogue.submit', on_submit, {once: true});
-			},
-
-			editItem(target, data) {
-				const overlay = PopUp('item.edit', data, {
-					dialogueid: 'item-edit',
-					dialogue_class: 'modal-popup-large',
-					prevent_navigation: true,
-					trigger_element: target
-				});
-
-				overlay.$dialogue[0].addEventListener('dialogue.submit', on_submit, {once: true});
-			}
-		};
 	}
 
 	_initTopbar() {

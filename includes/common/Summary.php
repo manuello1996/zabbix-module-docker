@@ -16,7 +16,8 @@ class Summary {
 		}
 		$card = (new \CDiv([
 			(new \CDiv($label))->addClass('docker-statseg-label'),
-			(new \CDiv($content))->addClass('docker-statseg-figure')
+			(new \CDiv($content))->addClass('docker-statseg-figure'),
+			isset($options['footer']) ? (new \CDiv($options['footer']))->addClass('docker-statseg-footer') : null
 		]))->addClass('docker-statseg')->addClass('docker-card-'.($options['modifier'] ?? 'total'));
 		foreach ($options['attributes'] ?? [] as $name => $value) { $card->setAttribute($name, $value); }
 		return $card;
@@ -26,5 +27,12 @@ class Summary {
 		$strip = (new \CDiv($cards))->addClass('docker-statstrip');
 		foreach ($attributes as $name => $value) { $strip->setAttribute($name, $value); }
 		return $strip;
+	}
+
+	/** Independent cards for detail-page health metrics, without a wrapping strip. */
+	public static function grid(array $cards, array $attributes = []): \CDiv {
+		$grid = (new \CDiv($cards))->addClass('docker-summary-grid');
+		foreach ($attributes as $name => $value) { $grid->setAttribute($name, $value); }
+		return $grid;
 	}
 }

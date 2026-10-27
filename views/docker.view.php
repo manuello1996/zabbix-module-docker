@@ -10,14 +10,15 @@ use Modules\MonitorDocker\Includes\Common\Pager;
 use Modules\MonitorDocker\Includes\Common\SearchControl;
 
 use Modules\MonitorDocker\Includes\DockerFormatter;
+use Modules\MonitorDocker\Includes\DockerItemMenu as I;
 use Modules\MonitorDocker\Includes\DockerTablePreferences;
 
 require_once dirname(__DIR__).'/includes/common/bootstrap.php';
 
+\Modules\MonitorDocker\Includes\Common\ItemActions::init($this);
+
 $this->addJsFile('class.calendar.js');
 $this->addJsFile('gtlc.js');
-$this->addJsFile('multilineinput.js');
-$this->addJsFile('items.js');
 
 $this->includeJsFile('docker.view.js.php');
 
@@ -357,19 +358,19 @@ foreach ($data['containers'] as $container) {
 			->addClass('docker-name')
 			->setAttribute('data-container', $row['name']),
 
-		(new CSpan($row['note']))->addClass('js-note'),
+		(new CSpan(I::value($row['note'], $container, 'note')))->addClass('js-note'),
 
-		(new CSpan($row['status_text']))
+		(new CSpan(I::value($row['status_text'], $container, 'status')))
 			->addClass('docker-state')
 			->addClass('docker-state-'.$row['status_kind'])
 			->addClass('js-status'),
 
-		(new CSpan($row['health_text']))
+		(new CSpan(I::value($row['health_text'], $container, 'health')))
 			->addClass('docker-health')
 			->addClass('docker-health-'.$row['health_kind']),
 
 		(new CDiv([
-			(new CSpan($row['cpu']))->addClass('docker-metric-value')->addClass('js-cpu'),
+			(new CSpan(I::value($row['cpu'], $container, 'cpu')))->addClass('docker-metric-value')->addClass('js-cpu'),
 			$makeSparkline(
 				$container['cpu_itemid'] !== null ? [$container['cpu_itemid']] : [],
 				$row['status_kind']
@@ -377,7 +378,7 @@ foreach ($data['containers'] as $container) {
 		]))->addClass('docker-metric-cell'),
 
 		(new CDiv([
-			(new CSpan($row['memory']))->addClass('docker-metric-value')->addClass('js-mem-val'),
+			(new CSpan(I::value($row['memory'], $container, 'memory')))->addClass('docker-metric-value')->addClass('js-mem-val'),
 			$makeSparkline(
 				$container['memory_itemid'] !== null ? [$container['memory_itemid']] : [],
 				$row['status_kind'], 'single', (float) ($data['node']['mem_total'] ?? 0)
@@ -385,9 +386,9 @@ foreach ($data['containers'] as $container) {
 		]))->addClass('docker-metric-cell'),
 
 		(new CDiv([
-			(new CSpan($row['net_in']))->addClass('docker-net-rx')->addClass('js-rx'),
+			(new CSpan(I::value($row['net_in'], $container, 'net_in')))->addClass('docker-net-rx')->addClass('js-rx'),
 			(new CSpan('/'))->addClass('docker-net-sep'),
-			(new CSpan($row['net_out']))->addClass('docker-net-tx')->addClass('js-tx')
+			(new CSpan(I::value($row['net_out'], $container, 'net_out')))->addClass('docker-net-tx')->addClass('js-tx')
 		]))->addClass('docker-netcell')
 	]))
 		->addClass($row['status_kind'] === 'restarting' ? 'docker-row-restarting' : null)

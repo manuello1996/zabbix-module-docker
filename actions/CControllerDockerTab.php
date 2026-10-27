@@ -29,6 +29,7 @@ use CTag;
 use CWebUser;
 use Modules\MonitorDocker\Includes\DockerCollector;
 use Modules\MonitorDocker\Includes\DockerFormatter;
+use Modules\MonitorDocker\Includes\DockerItemMenu as I;
 use Modules\MonitorDocker\Includes\DockerImageAge;
 
 require_once dirname(__DIR__).'/includes/common/bootstrap.php';
@@ -275,8 +276,10 @@ class CControllerDockerTab extends CController {
 		]);
 
 		$values = [];
+		$itemids = [];
 
 		foreach ($items as $item) {
+			$itemids[$item['key_']] = (string) $item['itemid'];
 			if ($item['lastclock'] > 0) {
 				$values[$item['key_']] = $item['lastvalue'];
 			}
@@ -299,7 +302,7 @@ class CControllerDockerTab extends CController {
 				$pill_value = (new CSpan($format === 'bytes' ? DockerFormatter::bytes($value) : $value));
 			}
 
-			$pills[] = Summary::card($label, $pill_value);
+			$pills[] = Summary::card($label, I::link($pill_value, $itemids[$key] ?? null));
 		}
 
 		$table = (new CTableInfo())
@@ -308,7 +311,7 @@ class CControllerDockerTab extends CController {
 
 		foreach ($property_keys as $key => $label) {
 			if (array_key_exists($key, $values)) {
-				$table->addRow([$label, $values[$key]]);
+				$table->addRow([$label, I::link($values[$key], $itemids[$key] ?? null)]);
 			}
 		}
 

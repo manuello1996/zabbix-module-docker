@@ -40,8 +40,6 @@ class DockerCollector {
 
 	public const SPARKLINE_PERIOD = 86400;
 
-	private const SPARKLINE_FIELDS = ['cpu', 'memory'];
-
 	private const SPARKLINE_POINTS = 60;
 
 	public static function hasRecentValue(array $item): bool {
@@ -96,9 +94,7 @@ class DockerCollector {
 
 			$containers[$name][$field] = $value;
 
-			if (in_array($field, self::SPARKLINE_FIELDS, true)) {
-				$containers[$name][$field.'_itemid'] = $itemid;
-			}
+			$containers[$name][$field.'_itemid'] = (string) $itemid;
 		}
 
 		foreach ($containers as &$container) {

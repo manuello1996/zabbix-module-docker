@@ -16,6 +16,7 @@ use CUrl;
 use CWebUser;
 use Modules\MonitorDocker\Includes\DockerCollector;
 use Modules\MonitorDocker\Includes\DockerFormatter;
+use Modules\MonitorDocker\Includes\DockerItemMenu as I;
 
 require_once dirname(__DIR__).'/includes/common/bootstrap.php';
 
@@ -169,6 +170,10 @@ class CControllerDockerContainer extends CController {
 			: '-';
 	}
 
+	private function itemValue(array $by_prefix, string $prefix) {
+		return I::link($this->formattedValue($by_prefix, $prefix), $by_prefix[$prefix]['itemid'] ?? null);
+	}
+
 	private function rawValue(array $by_prefix, string $prefix): ?string {
 		$item = $by_prefix[$prefix] ?? null;
 
@@ -176,7 +181,7 @@ class CControllerDockerContainer extends CController {
 	}
 
 	private function countValue(array $by_prefix, string $prefix): CSpan {
-		$value = (new CSpan($this->formattedValue($by_prefix, $prefix)))->addClass('docker-stat-value');
+		$value = (new CSpan($this->itemValue($by_prefix, $prefix)))->addClass('docker-stat-value');
 		$raw = $this->rawValue($by_prefix, $prefix);
 
 		if ($raw !== null && (float) $raw != 0) {
@@ -189,7 +194,7 @@ class CControllerDockerContainer extends CController {
 	private function makeIdentityStrip(array $by_prefix): CDiv {
 		$health_raw = $this->rawValue($by_prefix, 'docker.container_info.state.health');
 
-		$health = (new CSpan($this->formattedValue($by_prefix, 'docker.container_info.state.health')))
+		$health = (new CSpan($this->itemValue($by_prefix, 'docker.container_info.state.health')))
 			->addClass('docker-stat-value');
 
 		if ($health_raw !== null && (int) $health_raw == 3) {
@@ -211,9 +216,9 @@ class CControllerDockerContainer extends CController {
 		return (new CDiv([
 			$chip(_('Health'), $health),
 			$chip(_('Exit code'), $this->countValue($by_prefix, 'docker.container_info.state.exitcode')),
-			$chip(_('Restarts'), $this->formattedValue($by_prefix, 'docker.container_info.restart_count')),
-			$chip(_('PIDs'), $this->formattedValue($by_prefix, 'docker.container_stats.pids_stats.current')),
-			$chip(_('Image'), $image)
+			$chip(_('Restarts'), $this->itemValue($by_prefix, 'docker.container_info.restart_count')),
+			$chip(_('PIDs'), $this->itemValue($by_prefix, 'docker.container_stats.pids_stats.current')),
+			$chip(_('Image'), I::link($image, $by_prefix['docker.container_info.image']['itemid'] ?? null))
 				->addClass('docker-idchip-image')
 				->setTitle($image)
 		]))->addClass('docker-idbar');
@@ -413,7 +418,7 @@ class CControllerDockerContainer extends CController {
 				(new CSpan(_('Throttled').': '))->addClass('docker-stat-label'),
 				$this->countValue($by_prefix, 'docker.container_stats.cpu_usage.throttled_periods'),
 				' / ',
-				(new CSpan($this->formattedValue($by_prefix, 'docker.container_stats.cpu_usage.throttled_time')))
+				(new CSpan($this->itemValue($by_prefix, 'docker.container_stats.cpu_usage.throttled_time')))
 					->addClass('docker-stat-value')
 			], 0, 220],
 			['memory', _('Memory usage'), [
@@ -421,11 +426,11 @@ class CControllerDockerContainer extends CController {
 			], [
 				(new CSpan())->addClass('docker-series-dot')->addClass('docker-series-dot-1'),
 				(new CSpan(_('Used').' '))->addClass('docker-stat-label'),
-				(new CSpan($this->formattedValue($by_prefix, 'docker.container_stats.memory.usage_total')))
+				(new CSpan($this->itemValue($by_prefix, 'docker.container_stats.memory.usage_total')))
 					->addClass('docker-stat-value'),
 				' — ',
 				(new CSpan(_('Max').' '))->addClass('docker-stat-label'),
-				(new CSpan($this->formattedValue($by_prefix, 'docker.container_stats.memory.max_usage')))
+				(new CSpan($this->itemValue($by_prefix, 'docker.container_stats.memory.max_usage')))
 					->addClass('docker-stat-value')
 			], 0, 220],
 			['network', _('Network traffic'), [
