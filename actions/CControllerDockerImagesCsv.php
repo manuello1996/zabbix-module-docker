@@ -7,6 +7,7 @@ use CController;
 use CControllerResponseData;
 use CRoleHelper;
 use CWebUser;
+use Modules\MonitorDocker\Includes\DockerCollector;
 use Modules\MonitorDocker\Includes\DockerImageAge;
 
 class CControllerDockerImagesCsv extends CController {
@@ -40,7 +41,7 @@ class CControllerDockerImagesCsv extends CController {
 
 		foreach ($items as $item) {
 			if ($item['lastclock'] == 0
-					|| preg_match('/^docker\.image\.created\["?([^"\]]+)"?\]$/', $item['key_']) !== 1) {
+					|| preg_match('/^docker\.image\.created\["?([^"\]]+)"?\]$/', $item['key_'], $matches) !== 1) {
 				continue;
 			}
 
@@ -51,6 +52,7 @@ class CControllerDockerImagesCsv extends CController {
 			}
 
 			$item['created'] = $created;
+			$item['image_id'] = $this->imageId($matches[1]);
 			$old_items[] = $item;
 		}
 
@@ -63,6 +65,7 @@ class CControllerDockerImagesCsv extends CController {
 				'preservekeys' => true
 			])
 			: [];
+		$usage = $this->imageUsage(array_keys($hosts));
 
 		foreach ($old_items as $item) {
 			if (!array_key_exists($item['hostid'], $hosts)) {
@@ -70,13 +73,19 @@ class CControllerDockerImagesCsv extends CController {
 			}
 
 			$host = $hosts[$item['hostid']];
+			$image = preg_replace('/^Image\s+|:\s+[^:]+$/u', '', $item['name']);
+			$host_usage = $usage[$item['hostid']] ?? null;
+			$containers = ($host_usage['ids'][$item['image_id']] ?? [])
+				+ ($host_usage['references'][$image] ?? []);
+			natcasesort($containers);
 
 			$rows[] = [
 				'team' => '',
 				'host' => $host['name'],
 				'notes' => (string) ($host['inventory']['notes'] ?? ''),
-				'image' => preg_replace('/^Image\s+|:\s+[^:]+$/u', '', $item['name']),
+				'image' => $image,
 				'date' => zbx_date2str(DATE_TIME_FORMAT, $item['created']),
+				'usage' => $containers ? implode(',', $containers) : ($host_usage === null ? 'UNKNOWN' : 'NOT IN USE'),
 				'created' => $item['created']
 			];
 		}
@@ -90,5 +99,75 @@ class CControllerDockerImagesCsv extends CController {
 		$response = new CControllerResponseData(['rows' => $rows]);
 		$response->setFileName('docker_images_older_than_'.$image_age['filename'].'_'.date('Y-m-d').'.csv');
 		$this->setResponse($response);
+	}
+
+	private function imageUsage(array $hostids): array {
+		if (!$hostids) {
+			return [];
+		}
+
+		$items = API::Item()->get([
+			'output' => ['hostid', 'key_', 'lastvalue', 'lastclock'],
+			'hostids' => $hostids,
+			'search' => ['key_' => ['docker.containers.image_usage', 'docker.container_info.image_id[']],
+			'searchByAny' => true,
+			'startSearch' => true,
+			'monitored' => true
+		]);
+		$snapshots = [];
+		$image_ids = [];
+
+		foreach ($items as $item) {
+			if (!DockerCollector::hasRecentValue($item)) {
+				continue;
+			}
+
+			if ($item['key_'] === 'docker.containers.image_usage') {
+				$containers = json_decode($item['lastvalue'], true);
+				if (is_array($containers) && substr(ltrim($item['lastvalue']), 0, 1) === '[') {
+					$snapshots[$item['hostid']] = $containers;
+				}
+			}
+			elseif (preg_match('/^docker\.container_info\.image_id\["?\/?([^"\]]+)"?\]$/',
+					$item['key_'], $matches) === 1) {
+				$image_ids[$item['hostid']][$matches[1]] = $this->imageId($item['lastvalue']);
+			}
+		}
+
+		$usage = [];
+		foreach ($snapshots as $hostid => $containers) {
+			$usage[$hostid] = ['ids' => [], 'references' => []];
+			foreach ($containers as $container) {
+				if (!is_array($container)) {
+					unset($usage[$hostid]);
+					break;
+				}
+				$names = array_values(array_filter(array_map(
+					static fn ($name): string => ltrim((string) $name, '/'),
+					(array) ($container['Names'] ?? [])
+				), 'strlen'));
+				if (!$names) {
+					unset($usage[$hostid]);
+					break;
+				}
+				$name = $names[0];
+				$id = $this->imageId($container['ImageID'] ?? '');
+				$id = $id !== '' ? $id : ($image_ids[$hostid][$name] ?? '');
+				$image = (string) ($container['Image'] ?? '');
+				if ($id === '' && $image === '') {
+					unset($usage[$hostid]);
+					break;
+				}
+				// Match by reference only when no exact ID is available; tags can be reassigned.
+				$bucket = $id !== '' ? 'ids' : 'references';
+				$usage[$hostid][$bucket][$id !== '' ? $id : $image][$name] = $name;
+			}
+		}
+
+		return $usage;
+	}
+
+	private function imageId(string $id): string {
+		return strtolower((string) preg_replace('/^sha256:/i', '', $id));
 	}
 }

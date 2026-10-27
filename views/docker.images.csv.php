@@ -4,10 +4,10 @@
  * @var array $data
  */
 
-$csv = [[_('Team'), _('Host'), _('Notes'), _('Image'), _('Date')]];
+$csv = [[_('Team'), _('Host'), _('Notes'), _('Image'), _('Date'), _('Used by containers')]];
 
 foreach ($data['rows'] as $row) {
-	$csv[] = [$row['team'], $row['host'], $row['notes'], $row['image'], $row['date']];
+	$csv[] = [$row['team'], $row['host'], $row['notes'], $row['image'], $row['date'], $row['usage']];
 }
 
 echo zbx_toCSV($csv);
